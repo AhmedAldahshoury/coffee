@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AeroPress Optimizer Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <div class="bg"></div>
+  <main class="app-shell">
+    <header>
+      <p class="kicker">Premium Brew Assistant</p>
+      <h1>AeroPress Optimizer</h1>
+      <p class="muted">Pick your judging style and instantly get a high-confidence next brew recommendation.</p>
+    </header>
+
+    <section class="panel controls">
+      <div class="row">
+        <label>Brew dataset</label>
+        <select id="datasetSelect">
+          <option value="aeropress.">AeroPress</option>
+          <option value="pourover.">Pour over</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Scoring method</label>
+        <select id="methodSelect">
+          <option value="median" selected>Median</option>
+          <option value="mean">Mean</option>
+          <option value="highest">Highest</option>
+          <option value="lowest">Lowest</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Prior weight</label>
+        <input id="weightInput" type="range" min="0.1" max="1" step="0.01" value="0.67" />
+        <span id="weightLabel">0.67</span>
+      </div>
+      <button id="runButton">Generate Recommendation</button>
+    </section>
+
+    <section class="panel">
+      <h2>Recommended next brew</h2>
+      <p id="summary" class="muted">No recommendation yet.</p>
+      <div id="recommendation" class="grid"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Top historical brews</h2>
+      <div id="topTrials"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
