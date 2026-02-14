@@ -1,4 +1,3 @@
-import math
 import os
 from glob import glob
 import matplotlib.pyplot as plt
@@ -72,7 +71,7 @@ def get_formatted_parameter(parameter, value, metadata_df, fixed=False):
     return f"{fixed_string} {parameter:>30}:   {value:>20}   {unit}"
 
 
-def get_score_colums(metadata_df):
+def get_score_columns(metadata_df):
     all_score_rows = metadata_df['type'] == 'score'
     all_score_names = metadata_df[all_score_rows]['name']
     all_score_columns = all_score_names.values
@@ -117,7 +116,7 @@ def get_metadata_from_path(path):
 
 
 def parse_experiments(experiments_df, metadata_df, persons, method):
-    all_score_columns = get_score_colums(metadata_df)
+    all_score_columns = get_score_columns(metadata_df)
     all_parameter_columns = get_parameter_columns(metadata_df)
     person_score_columns = filter_score_columns(all_score_columns, persons)
 
@@ -203,7 +202,7 @@ def visualize(study, experiments_df, metadata_df, args):
         optuna.visualization.matplotlib.plot_slice(study)
         plt.savefig('visualizations/slice.png')
     if args.scores:
-        all_score_columns = get_score_colums(metadata_df)
+        all_score_columns = get_score_columns(metadata_df)
         person_score_columns = filter_score_columns(all_score_columns, args.persons)
         scores_df = experiments_df[person_score_columns]
         visualize_scores(scores_df)

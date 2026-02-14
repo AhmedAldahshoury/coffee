@@ -1,0 +1,6 @@
+name = "coffee-optimizer-ui"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "./web"
+not_found_handling = "single-page-application"
