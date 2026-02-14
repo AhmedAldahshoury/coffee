@@ -46,7 +46,7 @@ Then open:
 
 ### Option 1: Cloudflare Pages (recommended)
 
-1. Create Pages project named `coffee-optimizer`.
+1. Create Pages project named `coffee-28b` (or update the GitHub workflow project name to your actual Pages project).
 2. Set build output directory to `web`.
 3. Add repo secrets in GitHub:
    - `CLOUDFLARE_API_TOKEN`
@@ -65,3 +65,13 @@ npx wrangler deploy
 ```
 
 using `wrangler.toml` in this repo.
+
+### 404 troubleshooting
+
+If your deployment succeeds but `*.pages.dev` shows **404 Not Found**, one of these is usually wrong:
+
+1. **Project name mismatch** between GitHub workflow and Cloudflare Pages project.
+2. **Build output directory** should be `web` (for this repo layout).
+3. **Wrong branch** deployed vs your Pages production branch.
+
+This repo now includes a root `index.html` redirect to `/web/` as a safety fallback when the root directory is deployed.
