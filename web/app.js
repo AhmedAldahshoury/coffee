@@ -13,10 +13,14 @@ const els = {
   fixed: document.getElementById('fixedParams'),
   topTrials: document.getElementById('topTrials'),
   charts: document.getElementById('charts'),
+  activeDataset: document.getElementById('activeDataset'),
+  activePersons: document.getElementById('activePersons'),
+  activeHistory: document.getElementById('activeHistory'),
+  presetBalanced: document.getElementById('presetBalanced'),
+  presetAggressive: document.getElementById('presetAggressive'),
 };
 
 const vizIds = ['vizTime', 'vizRelations', 'vizEdf', 'vizImportance', 'vizSlice', 'vizScores'];
-
 let loaded = null;
 
 const parseCsv = async (path) => {
@@ -77,7 +81,9 @@ const correlation = (x, y) => {
   if (!n) return 0;
   const mx = x.reduce((a, b) => a + b, 0) / n;
   const my = y.reduce((a, b) => a + b, 0) / n;
-  let num = 0; let dx = 0; let dy = 0;
+  let num = 0;
+  let dx = 0;
+  let dy = 0;
   for (let i = 0; i < n; i += 1) {
     const vx = x[i] - mx;
     const vy = y[i] - my;
@@ -139,6 +145,7 @@ const recommendationFromHistorical = (historical, fixedParameters) => {
       next[key] = meta['parameter type'] === 'int' ? Math.round(value) : Number(value.toFixed(2));
     }
   }
+
   return next;
 };
 
@@ -212,6 +219,12 @@ const drawCharts = (state) => {
   }
 };
 
+const updateHeroMetrics = (state) => {
+  els.activeDataset.textContent = els.dataset.selectedOptions[0].textContent;
+  els.activePersons.textContent = `${state.scoreKeys.length}`;
+  els.activeHistory.textContent = `${state.historical.length}`;
+};
+
 const render = async () => {
   if (!loaded || loaded.dataset !== els.dataset.value) {
     await loadData();
@@ -239,14 +252,41 @@ const render = async () => {
   }).join('');
   els.topTrials.innerHTML = `<table><thead><tr><th>Rank</th><th>Score</th>${state.parameterKeys.slice(0, 5).map((k) => `<th>${k}</th>`).join('')}</tr></thead><tbody>${topRows}</tbody></table>`;
 
+  updateHeroMetrics(state);
   drawCharts(state);
+};
+
+const applyPreset = (type) => {
+  if (type === 'balanced') {
+    els.method.value = 'median';
+    els.weight.value = '0.67';
+    els.best.checked = false;
+  } else {
+    els.method.value = 'highest';
+    els.weight.value = '0.35';
+    els.best.checked = true;
+  }
+  els.weightLabel.textContent = Number(els.weight.value).toFixed(2);
+  render().catch((e) => { els.summary.textContent = `Error: ${e.message}`; });
 };
 
 els.weight.addEventListener('input', () => { els.weightLabel.textContent = Number(els.weight.value).toFixed(2); });
 els.dataset.addEventListener('change', async () => { loaded = null; await render(); });
 els.run.addEventListener('click', () => render().catch((e) => { els.summary.textContent = `Error: ${e.message}`; }));
-els.selectAllPersons.addEventListener('click', () => { document.querySelectorAll('[data-person]').forEach((x) => { x.checked = true; }); });
-els.clearPersons.addEventListener('click', () => { document.querySelectorAll('[data-person]').forEach((x) => { x.checked = false; }); });
+els.selectAllPersons.addEventListener('click', () => {
+  document.querySelectorAll('[data-person]').forEach((x) => {
+    x.checked = true;
+  });
+  render().catch((e) => { els.summary.textContent = `Error: ${e.message}`; });
+});
+els.clearPersons.addEventListener('click', () => {
+  document.querySelectorAll('[data-person]').forEach((x) => {
+    x.checked = false;
+  });
+  render().catch((e) => { els.summary.textContent = `Error: ${e.message}`; });
+});
+els.presetBalanced.addEventListener('click', () => applyPreset('balanced'));
+els.presetAggressive.addEventListener('click', () => applyPreset('aggressive'));
 vizIds.forEach((id) => document.getElementById(id).addEventListener('change', () => render()));
 
 render().catch((e) => { els.summary.textContent = `Error: ${e.message}`; });
