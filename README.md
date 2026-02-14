@@ -42,6 +42,16 @@ Then open:
 
 - `http://localhost:8000/web/`
 
+
+All CLI flags are now available in the web UI controls:
+
+- `--best` via **Best mode** toggle
+- `--persons` via **Persons** multi-select chips
+- `--method` via **Scoring method**
+- `--weight` via **Prior weight** slider
+- Visualization flags (`--time`, `--relations`, `--edf`, `--importance`, `--slice`, `--scores`) via **Visualizations** toggles
+
+
 ## Deploy to Cloudflare
 
 ### Option 1: Cloudflare Pages (recommended)

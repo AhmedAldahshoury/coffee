@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body>
   <div class="bg"></div>
@@ -16,14 +17,15 @@
     <header>
       <p class="kicker">Premium Brew Assistant</p>
       <h1>AeroPress Optimizer</h1>
-      <p class="muted">Pick your judging style and instantly get a high-confidence next brew recommendation.</p>
+      <p class="muted">All optimizer controls are available in this UI: dataset, persons, scoring method, prior weight, and visual analytics.</p>
     </header>
 
     <section class="panel controls">
+      <h2>Optimizer Controls</h2>
       <div class="row">
         <label>Brew dataset</label>
         <select id="datasetSelect">
-          <option value="aeropress.">AeroPress</option>
+          <option value="aeropress." selected>AeroPress</option>
           <option value="pourover.">Pour over</option>
         </select>
       </div>
@@ -41,18 +43,51 @@
         <input id="weightInput" type="range" min="0.1" max="1" step="0.01" value="0.67" />
         <span id="weightLabel">0.67</span>
       </div>
+      <div class="row">
+        <label>Best mode</label>
+        <input id="bestToggle" type="checkbox" />
+        <span class="muted">Equivalent to <code>--best</code></span>
+      </div>
+
+      <div>
+        <label>Persons</label>
+        <div class="person-actions">
+          <button type="button" id="selectAllPersons" class="btn-secondary">Select all</button>
+          <button type="button" id="clearPersons" class="btn-secondary">Clear</button>
+        </div>
+        <div id="personsContainer" class="chips"></div>
+      </div>
+
+      <div>
+        <label>Visualizations</label>
+        <div class="chips">
+          <label class="chip"><input type="checkbox" id="vizTime" /> Time</label>
+          <label class="chip"><input type="checkbox" id="vizRelations" /> Relations</label>
+          <label class="chip"><input type="checkbox" id="vizEdf" /> EDF</label>
+          <label class="chip"><input type="checkbox" id="vizImportance" /> Importance</label>
+          <label class="chip"><input type="checkbox" id="vizSlice" /> Slice</label>
+          <label class="chip"><input type="checkbox" id="vizScores" /> Scores</label>
+        </div>
+      </div>
+
       <button id="runButton">Generate Recommendation</button>
     </section>
 
     <section class="panel">
       <h2>Recommended next brew</h2>
       <p id="summary" class="muted">No recommendation yet.</p>
+      <div id="fixedParams" class="grid"></div>
       <div id="recommendation" class="grid"></div>
     </section>
 
     <section class="panel">
       <h2>Top historical brews</h2>
       <div id="topTrials"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Analytics</h2>
+      <div id="charts"></div>
     </section>
   </main>
 
