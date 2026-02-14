@@ -22,6 +22,7 @@ const els = {
 
 const vizIds = ['vizTime', 'vizRelations', 'vizEdf', 'vizImportance', 'vizSlice', 'vizScores'];
 let loaded = null;
+let resizeTimer = null;
 
 const parseCsv = async (path) => {
   const text = await fetch(path).then((r) => {
@@ -149,6 +150,8 @@ const recommendationFromHistorical = (historical, fixedParameters) => {
   return next;
 };
 
+const mobileParamColumns = () => (window.innerWidth <= 560 ? 2 : 5);
+
 const drawCharts = (state) => {
   els.charts.innerHTML = '';
   const on = (id) => document.getElementById(id).checked;
@@ -246,11 +249,12 @@ const render = async () => {
     })
     .join('');
 
+  const visibleColumns = state.parameterKeys.slice(0, mobileParamColumns());
   const topRows = state.historical.slice(0, 8).map((row, idx) => {
-    const cells = state.parameterKeys.slice(0, 5).map((k) => `<td>${row[k]}</td>`).join('');
+    const cells = visibleColumns.map((k) => `<td>${row[k]}</td>`).join('');
     return `<tr><td>#${idx + 1}</td><td>${row.objective.toFixed(2)}</td>${cells}</tr>`;
   }).join('');
-  els.topTrials.innerHTML = `<table><thead><tr><th>Rank</th><th>Score</th>${state.parameterKeys.slice(0, 5).map((k) => `<th>${k}</th>`).join('')}</tr></thead><tbody>${topRows}</tbody></table>`;
+  els.topTrials.innerHTML = `<table><thead><tr><th>Rank</th><th>Score</th>${visibleColumns.map((k) => `<th>${k}</th>`).join('')}</tr></thead><tbody>${topRows}</tbody></table>`;
 
   updateHeroMetrics(state);
   drawCharts(state);
@@ -288,5 +292,12 @@ els.clearPersons.addEventListener('click', () => {
 els.presetBalanced.addEventListener('click', () => applyPreset('balanced'));
 els.presetAggressive.addEventListener('click', () => applyPreset('aggressive'));
 vizIds.forEach((id) => document.getElementById(id).addEventListener('change', () => render()));
+
+window.addEventListener('resize', () => {
+  if (resizeTimer) clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    render().catch((e) => { els.summary.textContent = `Error: ${e.message}`; });
+  }, 150);
+});
 
 render().catch((e) => { els.summary.textContent = `Error: ${e.message}`; });
