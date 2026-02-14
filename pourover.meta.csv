@@ -1,0 +1,22 @@
+name,type,parameter type,unit,low,high,step
+brand,parameter,category,brand,,,
+coffee amount,parameter,float,gram,10,25,1
+grinder setting,parameter,int,clicks,8,30,1
+anti-static water,parameter,float,microliter,0,400,50
+temperature,parameter,float,celsius,70,100,1
+blooming time,parameter,float,seconds,0,60,5
+pour amount,parameter,float,gram,20,250,10
+pour interval,parameter,float,seconds,5,60,5
+Raafat,score,,,,,
+David,score,,,,,
+Richard,score,,,,,
+Simon,score,,,,,
+Moh,score,,,,,
+Felix,score,,,,,
+Raneem,score,,,,,
+Matthias,score,,,,,
+Mateo,score,,,,,
+Ahmad,score,,,,,
+Christopher,score,,,,,
+Rob,score,,,,,
+Martina,score,,,,,

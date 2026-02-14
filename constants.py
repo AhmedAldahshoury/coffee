@@ -1,0 +1,5 @@
+NO_OPTIMIZE_COLUMNS = ["date", "comments"]
+OBJECTIVE_COLUMN = "score"
+FAILED_COLUMN = "failed"
+FAILED_SCORE = -1
+SEED = 42
