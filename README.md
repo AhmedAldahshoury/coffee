@@ -16,6 +16,7 @@ This repository is now organized as a production-ready full-stack platform.
 cp backend/.env.example backend/.env
 make backend-install
 make backend-dev
+# or: cd backend && python -m pip install -r requirements.txt
 ```
 
 ### Frontend

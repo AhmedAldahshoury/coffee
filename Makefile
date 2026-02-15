@@ -1,13 +1,13 @@
 .PHONY: backend-install backend-dev backend-test frontend-install frontend-dev frontend-build docker-up docker-down
 
 backend-install:
-	cd backend && pip install -e .
+	cd backend && python -m pip install -e .
 
 backend-dev:
-	cd backend && uvicorn app.main:app --reload --port 8000
+	cd backend && python -m uvicorn app.main:app --reload --port 8000
 
 backend-test:
-	cd backend && pytest
+	cd backend && python -m pytest
 
 frontend-install:
 	cd frontend && npm install
