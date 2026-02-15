@@ -12,9 +12,17 @@ const toNum = (value: DataCell): number | null => {
   return null;
 };
 
-const toPresentRecord = (row: Record<string, DataCell | number>): Record<string, string | number> => (
-  Object.fromEntries(Object.entries(row).filter(([, value]) => isPresent(value)))
-);
+type Present = string | number;
+type PresentEntry = [string, Present];
+
+const isPresentEntry = (e: [string, DataCell | number]): e is PresentEntry => isPresent(e[1]);
+
+const toPresentRecord = (row: Record<string, DataCell | number>): Record<string, Present> => {
+  return Object.fromEntries(
+    Object.entries(row).filter(isPresentEntry)
+  ) as Record<string, Present>;
+};
+
 
 export const correlation = (x: number[], y: number[]): number => {
   const n = x.length;
@@ -38,9 +46,10 @@ export const getState = (loaded: LoadedDataset, method: ScoringMethod, selectedP
   const parameterKeys = loaded.parameterKeys;
 
   const fixedRows = loaded.dataRows.filter((r) => !parameterKeys.every((k) => isPresent(r[k])));
-  const fixedParameters = fixedRows.length
-    ? toPresentRecord(Object.fromEntries(Object.entries(fixedRows[0]).filter(([key]) => parameterKeys.includes(key))))
-    : {};
+  const fixedParameters: Record<string, string | number> = fixedRows.length
+  ? toPresentRecord(Object.fromEntries(Object.entries(fixedRows[0]).filter(([key]) => parameterKeys.includes(key))))
+  : {};
+
 
   const historical: HistoricalRow[] = loaded.dataRows
     .filter((r) => parameterKeys.every((k) => isPresent(r[k])))
