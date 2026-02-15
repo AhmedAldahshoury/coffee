@@ -1,5 +1,7 @@
 .PHONY: backend-install backend-dev backend-test frontend-install frontend-dev frontend-build docker-up docker-down
 
+DOCKER_COMPOSE := $(shell if command -v docker-compose >/dev/null 2>&1; then echo docker-compose; else echo "docker compose"; fi)
+
 backend-install:
 	cd backend && python -m pip install -e .
 
@@ -19,7 +21,7 @@ frontend-build:
 	cd frontend && npm run build
 
 docker-up:
-	docker compose -f docker/docker-compose.yml up --build
+	$(DOCKER_COMPOSE) -f docker/docker-compose.yml up --build
 
 docker-down:
-	docker compose -f docker/docker-compose.yml down
+	$(DOCKER_COMPOSE) -f docker/docker-compose.yml down

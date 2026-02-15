@@ -47,7 +47,8 @@ Each event includes:
 
 ## Docker
 ```bash
-cd docker
-docker compose up --build
+make docker-up
 ```
+If your Docker installation does not include the `docker compose` plugin, the Makefile automatically falls back to `docker-compose`.
+
 This starts PostgreSQL, backend (with Alembic migration on startup), and frontend.
