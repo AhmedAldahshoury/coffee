@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coffee-optimizer-api"
+version = "1.0.0"
+description = "Production-ready FastAPI backend for coffee recipe optimization"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "pydantic-settings>=2.4.0",
+  "pandas>=2.2.0",
+  "numpy>=2.0.0",
+  "optuna>=3.6.0",
+  "python-multipart>=0.0.9"
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "-q"
