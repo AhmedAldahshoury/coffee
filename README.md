@@ -32,32 +32,27 @@ python optimize.py aeropress. --importance --scores
 
 ## Premium UI usage (local)
 
-Serve the repository root so the app and dataset can load:
-
 ```bash
-python -m http.server 8000
+cd web
+npm install
+npm run dev
 ```
 
-Then open:
+Production build:
 
-- `http://localhost:8000/web/`
+```bash
+cd web
+npm run build
+```
 
-
-All CLI flags are now available in the web UI controls:
-
-- `--best` via **Best mode** toggle
-- `--persons` via **Persons** multi-select chips
-- `--method` via **Scoring method**
-- `--weight` via **Prior weight** slider
-- Visualization flags (`--time`, `--relations`, `--edf`, `--importance`, `--slice`, `--scores`) via **Visualizations** toggles
-
+Vite outputs static assets to `web/dist`.
 
 ## Deploy to Cloudflare
 
 ### Option 1: Cloudflare Pages (recommended)
 
 1. Create Pages project named `coffee-28b` (or update the GitHub workflow project name to your actual Pages project).
-2. Set build output directory to `web`.
+2. Set build output directory to `web/dist`.
 3. Add repo secrets in GitHub:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID`
@@ -81,7 +76,7 @@ using `wrangler.toml` in this repo.
 If your deployment succeeds but `*.pages.dev` shows **404 Not Found**, one of these is usually wrong:
 
 1. **Project name mismatch** between GitHub workflow and Cloudflare Pages project.
-2. **Build output directory** should be `web` (for this repo layout).
+2. **Build output directory** should be `web/dist` (for this repo layout).
 3. **Wrong branch** deployed vs your Pages production branch.
 
 This repo now includes a root `index.html` redirect to `/web/` as a safety fallback when the root directory is deployed.
