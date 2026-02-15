@@ -1,12 +1,17 @@
 import { Button } from './ui/button';
-import { Card } from './ui/card';
+import { SectionCard } from './shared/SectionCard';
 
-export function BrewInputsCard({ onGetRecipe, onLogResult }: { onGetRecipe: () => void; onLogResult: () => void }) {
+export function BrewInputsCard({ onGetRecipe, onLogResult, loading }: { onGetRecipe: () => void; onLogResult: () => void; loading: boolean }) {
   return (
-    <Card className="space-y-3">
-      <h3 className="font-semibold">Ready to brew?</h3>
-      <Button className="w-full" onClick={onGetRecipe}>Get next recipe</Button>
-      <Button className="w-full" variant="outline" onClick={onLogResult}>Log result</Button>
-    </Card>
+    <SectionCard title="Brew actions" description="Refresh recommendations or log your latest cup.">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Button onClick={onGetRecipe} disabled={loading}>
+          {loading ? 'Refreshing…' : 'Get next recipe'}
+        </Button>
+        <Button variant="outline" onClick={onLogResult}>
+          Log result
+        </Button>
+      </div>
+    </SectionCard>
   );
 }

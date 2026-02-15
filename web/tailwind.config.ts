@@ -6,11 +6,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#f5f1eb',
-        foreground: '#2b2118',
-        card: '#fffdf9',
-        border: '#e8dfd4',
-        primary: '#5b3a29',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: 'hsl(var(--card))',
+        border: 'hsl(var(--border))',
+        primary: 'hsl(var(--primary))',
+        'primary-foreground': 'hsl(var(--primary-foreground))',
+        muted: 'hsl(var(--muted))',
+        'muted-foreground': 'hsl(var(--muted-foreground))',
+        ring: 'hsl(var(--ring))',
+      },
+      borderRadius: {
+        lg: '0.5rem',
+        xl: '0.75rem',
+      },
+      boxShadow: {
+        sm: '0 1px 2px rgba(15, 23, 42, 0.06)',
       },
     },
   },

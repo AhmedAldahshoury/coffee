@@ -2,4 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-body { @apply bg-background text-foreground antialiased; font-family: Inter, system-ui, sans-serif; }
+:root {
+  --background: 40 33% 98%;
+  --foreground: 24 35% 14%;
+  --card: 0 0% 100%;
+  --border: 28 20% 86%;
+  --primary: 24 41% 33%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 28 22% 94%;
+  --muted-foreground: 24 12% 38%;
+  --ring: 24 41% 33%;
+}
+
+.dark {
+  --background: 24 19% 10%;
+  --foreground: 36 33% 94%;
+  --card: 24 18% 14%;
+  --border: 24 13% 26%;
+  --primary: 35 69% 70%;
+  --primary-foreground: 24 19% 10%;
+  --muted: 24 15% 19%;
+  --muted-foreground: 30 15% 70%;
+  --ring: 35 69% 70%;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+* {
+  @apply border-border;
+}
