@@ -1,44 +1,53 @@
 # Coffee Optimizer Platform
 
-This repository is now organized as a production-ready full-stack platform.
+Interactive coffee optimization platform for AeroPress brewing with FastAPI + React.
 
-## Structure
+## Features
+- Legacy recommendation endpoint (`/api/v1/optimizer/recommendation`) preserved.
+- Interactive human-in-the-loop Optuna runs.
+- JWT authentication (`/auth/register`, `/auth/login`).
+- PostgreSQL persistence via SQLAlchemy + Alembic.
+- SSE run event stream (`/optimizer/runs/{run_id}/events`).
+- Leaderboard with filtering, sort, and pagination.
 
-- `backend/` FastAPI REST API and business services.
-- `frontend/` React + TypeScript web UI.
-- `docker/` Full-stack compose deployment.
-- `docs/` Architecture and migration documentation.
-
-## Quick start
+## Local setup
 
 ### Backend
 ```bash
-cp backend/.env.example backend/.env
-make backend-install
-make backend-dev
-# or: cd backend && python -m pip install -r requirements.txt
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
 ```
 
 ### Frontend
 ```bash
-cp frontend/.env.example frontend/.env
-make frontend-install
-make frontend-dev
+cd frontend
+npm install
+npm run dev
 ```
 
-If the UI shows network/CORS errors while backend is running, ensure `backend/.env` includes both `http://localhost:5173` and `http://127.0.0.1:5173` in `CORS_ORIGINS`.
+## Interactive optimization flow
+1. Register/login and keep the JWT in localStorage.
+2. Start run: `POST /api/v1/optimizer/runs/start`.
+3. Read latest suggested trial parameters.
+4. Submit score: `POST /api/v1/optimizer/runs/{run_id}/submit_score`.
+5. Observe progress stream from SSE endpoint.
 
-### Full stack via Docker
+## SSE payload
+Each event includes:
+- `trial_number`
+- `best_score`
+- `best_parameters`
+- `last_trial_parameters`
+- `last_trial_score`
+- `run_status`
+
+## Docker
 ```bash
-make docker-up
+cd docker
+docker compose up --build
 ```
-
-## API docs
-After backend startup, OpenAPI docs are available at:
-
-- `http://localhost:8000/api/v1/docs`
-
-## Migration notes
-Legacy CLI entrypoints were removed and replaced with a service-driven API architecture.
-Business logic is now isolated in `backend/app/services/optimizer_service.py` and consumed through REST.
-The frontend consumes this API through a typed client layer.
+This starts PostgreSQL, backend (with Alembic migration on startup), and frontend.
