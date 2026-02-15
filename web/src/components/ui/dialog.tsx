@@ -6,3 +6,5 @@ export const DialogContent = Dialog.Content;
 export const DialogPortal = Dialog.Portal;
 export const DialogOverlay = Dialog.Overlay;
 export const DialogClose = Dialog.Close;
+export const DialogTitle = Dialog.Title;
+export const DialogDescription = Dialog.Description;
