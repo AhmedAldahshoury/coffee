@@ -1,5 +1,23 @@
-import { FormEvent, useState } from 'react';
+import { isAxiosError } from 'axios';
+import { FormEvent, useMemo, useState } from 'react';
 import { useRecommendation } from '../hooks/useRecommendation';
+
+function getErrorMessage(error: unknown): string {
+  if (isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === 'string' && detail.length > 0) {
+      return detail;
+    }
+
+    if (error.code === 'ERR_NETWORK') {
+      return 'Network error: backend may be unreachable or blocked by CORS. Verify backend is running on port 8000.';
+    }
+
+    return error.message;
+  }
+
+  return 'Unknown error while fetching recommendation.';
+}
 
 export function OptimizerPage() {
   const [datasetPrefix, setDatasetPrefix] = useState('aeropress.');
@@ -17,6 +35,8 @@ export function OptimizerPage() {
       prior_weight: priorWeight,
     });
   };
+
+  const errorMessage = useMemo(() => getErrorMessage(recommendation.error), [recommendation.error]);
 
   return (
     <section className="panel">
@@ -53,7 +73,7 @@ export function OptimizerPage() {
         </button>
       </form>
 
-      {recommendation.error ? <p className="error">Unable to fetch recommendation.</p> : null}
+      {recommendation.error ? <p className="error">{errorMessage}</p> : null}
 
       {recommendation.data ? (
         <div className="results">

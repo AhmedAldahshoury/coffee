@@ -26,6 +26,8 @@ make frontend-install
 make frontend-dev
 ```
 
+If the UI shows network/CORS errors while backend is running, ensure `backend/.env` includes both `http://localhost:5173` and `http://127.0.0.1:5173` in `CORS_ORIGINS`.
+
 ### Full stack via Docker
 ```bash
 make docker-up
