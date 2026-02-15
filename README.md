@@ -52,7 +52,9 @@ Vite outputs static assets to `web/dist`.
 ### Option 1: Cloudflare Pages (recommended)
 
 1. Create Pages project named `coffee-28b` (or update the GitHub workflow project name to your actual Pages project).
-2. Set build output directory to `web/dist`.
+2. In Cloudflare Pages build settings use:
+   - **Build command:** `cd web && npm ci && npm run build`
+   - **Build output directory:** `web/dist`.
 3. Add repo secrets in GitHub:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID`
