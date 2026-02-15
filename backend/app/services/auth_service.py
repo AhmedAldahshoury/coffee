@@ -8,7 +8,12 @@ from passlib.context import CryptContext
 
 from app.config.settings import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# NOTE:
+# We intentionally use pbkdf2_sha256 instead of bcrypt.
+# bcrypt has a hard 72-byte password limit and can raise ValueError for long passwords,
+# which surfaced during user registration. pbkdf2_sha256 avoids that limitation while
+# still providing a strong one-way password hash via passlib.
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 class AuthService:
