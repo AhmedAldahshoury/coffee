@@ -1,4 +1,4 @@
-import { DataCell, LoadedDataset, OptimizerState, ScoringMethod } from './types';
+import { DataCell, HistoricalRow, LoadedDataset, OptimizerState, ScoringMethod } from './types';
 import { getScore } from './scoring';
 
 const isPresent = (value: DataCell): value is string | number => value !== null && value !== '' && value !== undefined;
@@ -11,6 +11,10 @@ const toNum = (value: DataCell): number | null => {
   }
   return null;
 };
+
+const toPresentRecord = (row: Record<string, DataCell | number>): Record<string, string | number> => (
+  Object.fromEntries(Object.entries(row).filter(([, value]) => isPresent(value)))
+);
 
 export const correlation = (x: number[], y: number[]): number => {
   const n = x.length;
@@ -35,13 +39,13 @@ export const getState = (loaded: LoadedDataset, method: ScoringMethod, selectedP
 
   const fixedRows = loaded.dataRows.filter((r) => !parameterKeys.every((k) => isPresent(r[k])));
   const fixedParameters = fixedRows.length
-    ? Object.fromEntries(Object.entries(fixedRows[0]).filter(([k, v]) => parameterKeys.includes(k) && isPresent(v))) as Record<string, string | number>
+    ? toPresentRecord(Object.fromEntries(Object.entries(fixedRows[0]).filter(([key]) => parameterKeys.includes(key))))
     : {};
 
-  const historical = loaded.dataRows
+  const historical: HistoricalRow[] = loaded.dataRows
     .filter((r) => parameterKeys.every((k) => isPresent(r[k])))
     .map((r, idx) => ({ ...r, _index: idx, objective: getScore(r, scoreKeys, method) }))
-    .filter((r): r is OptimizerState['historical'][number] => typeof r.objective === 'number')
+    .filter((r): r is HistoricalRow => typeof r.objective === 'number')
     .sort((a, b) => b.objective - a.objective);
 
   return { method, selectedPersons, scoreKeys, parameterKeys, historical, fixedParameters };
@@ -55,7 +59,7 @@ export const recommendationFromHistorical = (
   best: boolean,
 ): Record<string, string | number> => {
   if (!historical.length) return {};
-  if (best) return { ...historical[0] };
+  if (best) return toPresentRecord(historical[0]);
 
   const eliteCount = Math.max(3, Math.floor(historical.length * 0.25));
   const elite = historical.slice(0, eliteCount);

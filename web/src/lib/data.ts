@@ -1,4 +1,4 @@
-import { DataCell, DataRow, DatasetKey, LoadedDataset, MetaRow } from './types';
+import { CsvRow, DataCell, DataRow, DatasetKey, LoadedDataset, MetaRow } from './types';
 
 const FILES: Record<DatasetKey, { data: string; meta: string }> = {
   'aeropress.': { data: '/data/aeropress.data.csv', meta: '/data/aeropress.meta.csv' },
@@ -12,7 +12,7 @@ const numberOrString = (input: string): DataCell => {
   return Number.isFinite(n) ? n : v;
 };
 
-export const parseCsv = async <T extends Record<string, DataCell>>(path: string): Promise<T[]> => {
+export const parseCsv = async <T extends CsvRow>(path: string): Promise<T[]> => {
   const text = await fetch(path).then((r) => {
     if (!r.ok) throw new Error(`Could not load ${path}`);
     return r.text();
