@@ -49,8 +49,6 @@ Vite outputs static assets to `web/dist`.
 
 ## Deploy to Cloudflare
 
-### Option 1: Cloudflare Pages (recommended)
-
 1. Create Pages project named `coffee-28b` (or update the GitHub workflow project name to your actual Pages project).
 2. In Cloudflare Pages build settings use:
    - **Build command:** `cd web && npm ci && npm run build`
@@ -64,14 +62,6 @@ You can view deployments in:
 
 - GitHub Actions tab (workflow runs)
 - Cloudflare Pages project → **Deployments**
-
-### Option 2: Wrangler static assets
-
-```bash
-npx wrangler deploy
-```
-
-using `wrangler.toml` in this repo.
 
 ### 404 troubleshooting
 
