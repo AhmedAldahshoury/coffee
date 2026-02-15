@@ -13,8 +13,24 @@ const buttonVariants = cva('inline-flex items-center justify-center rounded-xl p
   defaultVariants: { variant: 'default' },
 });
 
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {}
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
 
-export function Button({ className, variant, ...props }: ButtonProps) {
-  return <button className={cn(buttonVariants({ variant }), className)} {...props} />;
+export function Button({ className, variant, asChild = false, type, children, ...props }: ButtonProps) {
+  const classes = cn(buttonVariants({ variant }), className);
+
+  if (asChild && React.isValidElement(children)) {
+    const childProps = children.props as { className?: string };
+    return React.cloneElement(children, {
+      ...props,
+      className: cn(classes, childProps.className),
+    });
+  }
+
+  return (
+    <button type={type ?? 'button'} className={classes} {...props}>
+      {children}
+    </button>
+  );
 }
