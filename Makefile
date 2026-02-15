@@ -1,7 +1,5 @@
 .PHONY: backend-install backend-dev backend-test frontend-install frontend-dev frontend-build docker-up docker-down
 
-DOCKER_COMPOSE := $(shell if command -v docker-compose >/dev/null 2>&1; then echo docker-compose; else echo "docker compose"; fi)
-
 backend-install:
 	cd backend && python -m pip install -e .
 
@@ -21,7 +19,23 @@ frontend-build:
 	cd frontend && npm run build
 
 docker-up:
-	$(DOCKER_COMPOSE) -f docker/docker-compose.yml up --build
+	@set -e; \
+	if docker compose version >/dev/null 2>&1; then \
+		docker compose -f docker/docker-compose.yml up --build; \
+	elif command -v docker-compose >/dev/null 2>&1; then \
+		docker-compose -f docker/docker-compose.yml up --build; \
+	else \
+		echo "Error: neither 'docker compose' nor 'docker-compose' is available."; \
+		exit 1; \
+	fi
 
 docker-down:
-	$(DOCKER_COMPOSE) -f docker/docker-compose.yml down
+	@set -e; \
+	if docker compose version >/dev/null 2>&1; then \
+		docker compose -f docker/docker-compose.yml down; \
+	elif command -v docker-compose >/dev/null 2>&1; then \
+		docker-compose -f docker/docker-compose.yml down; \
+	else \
+		echo "Error: neither 'docker compose' nor 'docker-compose' is available."; \
+		exit 1; \
+	fi
