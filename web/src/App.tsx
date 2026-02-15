@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { TopNav } from '@/components/TopNav';
 import { loadData } from '@/lib/data';
 import { getState, recommendationFromHistorical } from '@/lib/optimizer';
-import { DatasetKey, LoadedDataset, ScoringMethod } from '@/lib/types';
+import { ChartToggles, DatasetKey, LoadedDataset, ScoringMethod } from '@/lib/types';
 import { BrewRoute } from '@/routes/Brew';
 import { HistoryRoute } from '@/routes/History';
 import { InsightsRoute } from '@/routes/Insights';
+
+const initialToggles: ChartToggles = { history: true, importance: true, scores: true, edf: false, slice: false };
 
 export default function App() {
   const [dataset, setDataset] = useState<DatasetKey>('aeropress.');
@@ -15,10 +17,15 @@ export default function App() {
   const [weight, setWeight] = useState(0.5);
   const [best, setBest] = useState(false);
   const [selectedPersons, setSelectedPersons] = useState<string[]>([]);
-  const [toggles, setToggles] = useState({ history: true, importance: true, scores: true, edf: false, slice: false });
+  const [toggles, setToggles] = useState<ChartToggles>(initialToggles);
   const [sliceParam, setSliceParam] = useState('');
 
-  useEffect(() => { if (!cache[dataset]) { loadData(dataset).then((d) => setCache((c) => ({ ...c, [dataset]: d }))); } }, [dataset, cache]);
+  useEffect(() => {
+    if (!cache[dataset]) {
+      loadData(dataset).then((d) => setCache((c) => ({ ...c, [dataset]: d })));
+    }
+  }, [dataset, cache]);
+
   const loaded = cache[dataset];
   if (!loaded) return <div className="p-8">Loading…</div>;
 

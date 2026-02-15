@@ -1,5 +1,16 @@
-import { LoadedDataset, OptimizerState, ScoringMethod } from './types';
+import { DataCell, LoadedDataset, OptimizerState, ScoringMethod } from './types';
 import { getScore } from './scoring';
+
+const isPresent = (value: DataCell): value is string | number => value !== null && value !== '' && value !== undefined;
+
+const toNum = (value: DataCell): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
 
 export const correlation = (x: number[], y: number[]): number => {
   const n = x.length;
@@ -22,15 +33,15 @@ export const getState = (loaded: LoadedDataset, method: ScoringMethod, selectedP
   const scoreKeys = selectedPersons.length ? selectedPersons : loaded.personNames;
   const parameterKeys = loaded.parameterKeys;
 
-  const fixedRows = loaded.dataRows.filter((r) => !parameterKeys.every((k) => r[k] !== null && r[k] !== '' && r[k] !== undefined));
+  const fixedRows = loaded.dataRows.filter((r) => !parameterKeys.every((k) => isPresent(r[k])));
   const fixedParameters = fixedRows.length
-    ? Object.fromEntries(Object.entries(fixedRows[0]).filter(([k, v]) => parameterKeys.includes(k) && v !== null && v !== ''))
+    ? Object.fromEntries(Object.entries(fixedRows[0]).filter(([k, v]) => parameterKeys.includes(k) && isPresent(v))) as Record<string, string | number>
     : {};
 
   const historical = loaded.dataRows
-    .filter((r) => parameterKeys.every((k) => r[k] !== null && r[k] !== '' && r[k] !== undefined))
+    .filter((r) => parameterKeys.every((k) => isPresent(r[k])))
     .map((r, idx) => ({ ...r, _index: idx, objective: getScore(r, scoreKeys, method) }))
-    .filter((r): r is OptimizerState['historical'][number] => r.objective !== null)
+    .filter((r): r is OptimizerState['historical'][number] => typeof r.objective === 'number')
     .sort((a, b) => b.objective - a.objective);
 
   return { method, selectedPersons, scoreKeys, parameterKeys, historical, fixedParameters };
@@ -53,23 +64,27 @@ export const recommendationFromHistorical = (
   for (const meta of loaded.parameterMeta) {
     const key = meta.name;
     if (key in fixedParameters) continue;
-    const values = elite.map((x) => x[key]).filter((x) => x !== null && x !== undefined && x !== '');
+    const values = elite.map((x) => x[key]).filter(isPresent);
     if (!values.length) continue;
 
     if (meta['parameter type'] === 'category') {
       const counts = values.reduce<Record<string, number>>((acc, v) => ({ ...acc, [String(v)]: (acc[String(v)] || 0) + 1 }), {});
       next[key] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
-    } else {
-      const avg = values.reduce((a, b) => a + Number(b), 0) / values.length;
-      const bestValue = Number(historical[0][key]);
-      let value = weight * avg + (1 - weight) * bestValue;
-      const low = Number(meta.low);
-      const high = Number(meta.high);
-      const step = Number(meta.step || 1);
-      value = Math.max(low, Math.min(high, value));
-      value = Math.round((value - low) / step) * step + low;
-      next[key] = meta['parameter type'] === 'int' ? Math.round(value) : Number(value.toFixed(2));
+      continue;
     }
+
+    const numericValues = values.map(toNum).filter((v): v is number => v !== null);
+    const bestValue = toNum(historical[0][key]);
+    if (!numericValues.length || bestValue === null) continue;
+
+    const avg = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
+    let value = weight * avg + (1 - weight) * bestValue;
+    const low = Number(meta.low);
+    const high = Number(meta.high);
+    const step = Number(meta.step || 1);
+    value = Math.max(low, Math.min(high, value));
+    value = Math.round((value - low) / step) * step + low;
+    next[key] = meta['parameter type'] === 'int' ? Math.round(value) : Number(value.toFixed(2));
   }
   return next;
 };

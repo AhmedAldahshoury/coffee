@@ -12,7 +12,9 @@ export interface MetaRow {
   'parameter type'?: ParameterType;
 }
 
-export type DataRow = Record<string, string | number | null>;
+export type DataCell = string | number | null;
+
+export type DataRow = Record<string, DataCell>;
 
 export interface LoadedDataset {
   dataset: DatasetKey;
@@ -25,6 +27,14 @@ export interface LoadedDataset {
 }
 
 export type ScoringMethod = 'median' | 'mean' | 'highest' | 'lowest';
+
+export type ChartToggles = {
+  history: boolean;
+  importance: boolean;
+  scores: boolean;
+  edf: boolean;
+  slice: boolean;
+};
 
 export interface OptimizerState {
   method: ScoringMethod;
