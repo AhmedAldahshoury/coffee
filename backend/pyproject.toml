@@ -7,7 +7,7 @@ name = "coffee-optimizer-api"
 version = "1.0.1"
 description = "Production-ready FastAPI backend for coffee recipe optimization"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.30.0",
