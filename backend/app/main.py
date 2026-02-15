@@ -7,6 +7,9 @@ from app.api.router import api_router
 from app.config.settings import settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging, logger
+from app.db.base import Base
+from app.db.session import engine
+from app.models import persistence  # noqa: F401
 
 configure_logging()
 
@@ -39,3 +42,8 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError) 
 
 
 app.include_router(api_router, prefix=settings.api_prefix)
+
+
+@app.on_event("startup")
+def startup() -> None:
+    Base.metadata.create_all(bind=engine)
