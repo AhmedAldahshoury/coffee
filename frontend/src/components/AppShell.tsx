@@ -1,28 +1,118 @@
-import { ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { httpClient, apiBaseUrl, formatApiError } from '../shared/api/httpClient';
 import { useThemeStore } from '../shared/config/themeStore';
+import { CoffeeIcon, HomeIcon, LogoMark, LogoutIcon, MoonIcon, SparkIcon, SunIcon, TrophyIcon, UserIcon } from './icons';
 
 interface Props { children: ReactNode }
+
+interface NavEntry {
+  to: string;
+  label: string;
+  icon: (props: { size?: number; className?: string }) => JSX.Element;
+}
+
+const navEntries: NavEntry[] = [
+  { to: '/brew', label: 'Brew Session', icon: CoffeeIcon },
+  { to: '/optimizer', label: 'Optimizer', icon: HomeIcon },
+  { to: '/leaderboard', label: 'Leaderboard', icon: TrophyIcon },
+  { to: '/account', label: 'Account', icon: UserIcon },
+];
+
+function NavItem({ to, label, icon: Icon }: NavEntry) {
+  const location = useLocation();
+  const active = location.pathname.startsWith(to);
+
+  return (
+    <Link to={to} className={active ? 'nav-item active' : 'nav-item'}>
+      <Icon size={16} />
+      <span>{label}</span>
+    </Link>
+  );
+}
 
 export function AppShell({ children }: Props) {
   const { darkMode, toggle } = useThemeStore();
   const navigate = useNavigate();
+  const token = localStorage.getItem('coffee_token');
+  const [health, setHealth] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [healthError, setHealthError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkHealth = async () => {
+      try {
+        await httpClient.get('/health', { timeout: 3000 });
+        if (!cancelled) {
+          setHealth('connected');
+          setHealthError('');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setHealth('disconnected');
+          setHealthError(formatApiError(error));
+        }
+      }
+    };
+
+    checkHealth();
+    const id = setInterval(checkHealth, 15000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  const healthClass = useMemo(() => {
+    if (health === 'connected') return 'health-pill connected';
+    if (health === 'disconnected') return 'health-pill disconnected';
+    return 'health-pill checking';
+  }, [health]);
 
   return (
     <div className={darkMode ? 'app dark' : 'app'}>
-      <header className="topbar">
-        <h1>Coffee Optimizer</h1>
-        <nav className="nav-links">
-          <Link to="/optimizer">Optimizer</Link>
-          <Link to="/leaderboard">Leaderboard</Link>
-          <Link to="/login">Login</Link>
+      <div className="ambient-glow" aria-hidden="true" />
+      <header className="topbar glass-panel">
+        <div className="brand">
+          <LogoMark />
+          <div>
+            <h1>Coffee Optimizer</h1>
+            <p>Guided brewing, optimisation and tasting intelligence.</p>
+          </div>
+        </div>
+
+        <nav className="nav-links" aria-label="Main navigation">
+          {navEntries.map((entry) => <NavItem key={entry.to} {...entry} />)}
         </nav>
-        <div>
-          <button onClick={toggle} className="btn btn-secondary" type="button">{darkMode ? 'Light' : 'Dark'}</button>
-          <button className="btn btn-secondary" onClick={() => { localStorage.removeItem('coffee_token'); navigate('/login'); }}>Logout</button>
+
+        <div className="actions">
+          <div className={healthClass} title={healthError || 'Backend API health'}>
+            <SparkIcon size={13} />
+            <span>{health}</span>
+          </div>
+          <p className="api-url" title={apiBaseUrl}>{apiBaseUrl}</p>
+          <button onClick={toggle} className="btn btn-secondary icon-btn" type="button">
+            {darkMode ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+            <span>{darkMode ? 'Light' : 'Dark'}</span>
+          </button>
+          {token ? (
+            <button
+              className="btn btn-ghost icon-btn"
+              onClick={() => {
+                localStorage.removeItem('coffee_token');
+                navigate('/login');
+              }}
+              type="button"
+            >
+              <LogoutIcon size={16} />
+              <span>Logout</span>
+            </button>
+          ) : null}
         </div>
       </header>
-      <main className="content">{children}</main>
+      <main className="content page-transition">{children}</main>
     </div>
   );
 }

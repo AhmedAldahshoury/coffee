@@ -28,27 +28,29 @@ def get_leaderboard(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> LeaderboardResponse:
-    q = select(Brew)
+    base_query = select(Brew)
     if user_id:
-        q = q.where(Brew.user_id == user_id)
+        base_query = base_query.where(Brew.user_id == user_id)
     if date_from:
-        q = q.where(Brew.created_at >= date_from)
+        base_query = base_query.where(Brew.created_at >= date_from)
     if date_to:
-        q = q.where(Brew.created_at <= date_to)
+        base_query = base_query.where(Brew.created_at <= date_to)
     if method:
-        q = q.where(Brew.method == method)
+        base_query = base_query.where(Brew.method == method)
     if minimum_score is not None:
-        q = q.where(Brew.score >= minimum_score)
+        base_query = base_query.where(Brew.score >= minimum_score)
 
-    total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
+    filtered_subq = base_query.subquery()
+
+    total = db.scalar(select(func.count()).select_from(filtered_subq)) or 0
+    avg_score = db.scalar(select(func.avg(filtered_subq.c.score)).select_from(filtered_subq)) or 0.0
+    count_trials = db.scalar(select(func.count()).select_from(filtered_subq)) or 0
+
     if sort_by == "score":
-        q = q.order_by(Brew.score.desc())
+        ordered_query = base_query.order_by(Brew.score.desc())
     else:
-        q = q.order_by(Brew.created_at.desc())
-    items = list(db.scalars(q.offset((page - 1) * page_size).limit(page_size)))
-
-    avg_score = db.scalar(select(func.avg(Brew.score)).select_from(q.subquery())) or 0.0
-    count_trials = db.scalar(select(func.count()).select_from(q.subquery())) or 0
+        ordered_query = base_query.order_by(Brew.created_at.desc())
+    items = list(db.scalars(ordered_query.offset((page - 1) * page_size).limit(page_size)))
 
     return LeaderboardResponse(
         items=[
