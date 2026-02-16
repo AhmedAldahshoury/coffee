@@ -1,7 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { httpClient, apiBaseUrl, formatApiError } from '../shared/api/httpClient';
 import { useThemeStore } from '../shared/config/themeStore';
-import { HomeIcon, LogoMark, LogoutIcon, MoonIcon, SunIcon, TrophyIcon, UserIcon } from './icons';
+import { HomeIcon, LogoMark, LogoutIcon, MoonIcon, SparkIcon, SunIcon, TrophyIcon, UserIcon } from './icons';
 
 interface Props { children: ReactNode }
 
@@ -33,6 +34,41 @@ export function AppShell({ children }: Props) {
   const { darkMode, toggle } = useThemeStore();
   const navigate = useNavigate();
   const token = localStorage.getItem('coffee_token');
+  const [health, setHealth] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [healthError, setHealthError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkHealth = async () => {
+      try {
+        await httpClient.get('/health', { timeout: 3000 });
+        if (!cancelled) {
+          setHealth('connected');
+          setHealthError('');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setHealth('disconnected');
+          setHealthError(formatApiError(error));
+        }
+      }
+    };
+
+    checkHealth();
+    const id = setInterval(checkHealth, 15000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  const healthClass = useMemo(() => {
+    if (health === 'connected') return 'health-pill connected';
+    if (health === 'disconnected') return 'health-pill disconnected';
+    return 'health-pill checking';
+  }, [health]);
 
   return (
     <div className={darkMode ? 'app dark' : 'app'}>
@@ -51,6 +87,11 @@ export function AppShell({ children }: Props) {
         </nav>
 
         <div className="actions">
+          <div className={healthClass} title={healthError || 'Backend API health'}>
+            <SparkIcon size={13} />
+            <span>{health}</span>
+          </div>
+          <p className="api-url" title={apiBaseUrl}>{apiBaseUrl}</p>
           <button onClick={toggle} className="btn btn-secondary icon-btn" type="button">
             {darkMode ? <SunIcon size={16} /> : <MoonIcon size={16} />}
             <span>{darkMode ? 'Light' : 'Dark'}</span>

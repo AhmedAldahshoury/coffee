@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react';
 import { ChevronIcon, TrophyIcon } from '../../components/icons';
-import { httpClient } from '../../shared/api/httpClient';
+import { formatApiError, httpClient } from '../../shared/api/httpClient';
 
 export function LeaderboardPage() {
   const [minimumScore, setMinimumScore] = useState(0);
   const [sortBy, setSortBy] = useState<'score' | 'date'>('score');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
     setLoading(true);
+    setError('');
+
     httpClient.get('/leaderboard', { params: { minimum_score: minimumScore, sort_by: sortBy, page } })
       .then((res) => setData(res.data))
+      .catch((err) => setError(formatApiError(err)))
       .finally(() => setLoading(false));
   }, [minimumScore, sortBy, page]);
 
@@ -39,6 +43,14 @@ export function LeaderboardPage() {
         </label>
       </div>
 
+      {error ? <div className="error-banner">Leaderboard request failed: {error}</div> : null}
+
+      <div className="stats-grid compact">
+        <div className="stat"><span>Total rows</span><strong>{data?.total ?? 0}</strong></div>
+        <div className="stat"><span>Average score</span><strong>{data?.average_score?.toFixed?.(2) ?? '-'}</strong></div>
+        <div className="stat"><span>Trials in query</span><strong>{data?.number_of_trials ?? 0}</strong></div>
+      </div>
+
       <div className="table-wrap">
         <table>
           <thead>
@@ -49,6 +61,10 @@ export function LeaderboardPage() {
               <tr>
                 <td colSpan={4} className="skeleton shimmer">Loading leaderboard…</td>
               </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={4} className="muted">Unable to load leaderboard due to API error.</td>
+              </tr>
             ) : data?.items?.length ? data.items.map((item: any) => (
               <tr key={item.brew_id}>
                 <td>{item.user_id}</td>
@@ -58,7 +74,9 @@ export function LeaderboardPage() {
               </tr>
             )) : (
               <tr>
-                <td colSpan={4} className="muted">No entries yet for this filter.</td>
+                <td colSpan={4} className="muted">
+                  No leaderboard entries yet. This can mean no brews have been submitted or your filters are too strict.
+                </td>
               </tr>
             )}
           </tbody>

@@ -1,19 +1,80 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { BoltIcon, SparkIcon } from '../../../components/icons';
-import { createRunEvents, fetchRecommendation, startRun, submitScore } from '../api/optimizerApi';
+import { formatApiError, httpClient } from '../../../shared/api/httpClient';
+import { createRunEvents, fetchRecommendation, getRun, listRuns, startRun, submitScore, type OptimizerRun } from '../api/optimizerApi';
+
+interface ActivityEvent {
+  id: number;
+  at: string;
+  message: string;
+}
+
+function RecommendationCard({ recommendation }: { recommendation: any }) {
+  const [showRaw, setShowRaw] = useState(false);
+
+  return (
+    <article className="panel subpanel recommendation-card">
+      <h3>Recommendation result</h3>
+      <p className="muted">
+        Predicted score: <strong>{recommendation?.score ?? '-'}</strong> · Parameters returned: {recommendation?.suggested_parameters?.length ?? 0}
+      </p>
+      <table className="kv-table">
+        <thead>
+          <tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Fixed</th></tr>
+        </thead>
+        <tbody>
+          {(recommendation?.suggested_parameters ?? []).map((item: any) => (
+            <tr key={item.name}>
+              <td>{item.name}</td>
+              <td>{String(item.value)}</td>
+              <td>{item.unit ?? '-'}</td>
+              <td>{item.fixed ? 'Yes' : 'No'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button type="button" className="btn btn-ghost" onClick={() => setShowRaw((prev) => !prev)}>
+        {showRaw ? 'Hide raw JSON' : 'Show raw JSON'}
+      </button>
+      {showRaw ? <pre className="result-box raw-json">{JSON.stringify(recommendation, null, 2)}</pre> : null}
+    </article>
+  );
+}
+
+function pushEvent(setter: React.Dispatch<React.SetStateAction<ActivityEvent[]>>, message: string) {
+  setter((prev) => [{ id: Date.now() + Math.random(), at: new Date().toLocaleTimeString(), message }, ...prev].slice(0, 20));
+}
 
 export function OptimizerPage() {
   const [method, setMethod] = useState('median');
   const [nTrials, setNTrials] = useState(50);
   const [selectedPersons, setSelectedPersons] = useState('');
-  const [run, setRun] = useState<any>(null);
+  const [run, setRun] = useState<OptimizerRun | null>(null);
   const [score, setScore] = useState(8);
   const [loading, setLoading] = useState(false);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; kind: 'success' | 'warning' | 'info' } | null>(null);
+  const [errorBanner, setErrorBanner] = useState('');
   const [history, setHistory] = useState<{ trial: number; score: number }[]>([]);
   const [recommendation, setRecommendation] = useState<any>(null);
+  const [sseStatus, setSseStatus] = useState<'disconnected' | 'connected' | 'retrying' | 'polling'>('disconnected');
+  const [lastEventTime, setLastEventTime] = useState<string | null>(null);
+  const [eventsLog, setEventsLog] = useState<ActivityEvent[]>([]);
+  const [datasetInfo, setDatasetInfo] = useState<{ runs: number; leaderboardTotal: number; lastSync: string } | null>(null);
+
+  const pollTimer = useRef<number | null>(null);
+
+  const runState = useMemo(() => {
+    if (run?.latest_trial?.state === 'suggested' && run.status !== 'finished') return 'waiting_for_score';
+    return run?.status ?? 'idle';
+  }, [run]);
+
+  const progressLabel = useMemo(() => {
+    if (!run) return `0 / ${nTrials}`;
+    const current = Math.min(run.trial_count + (run.latest_trial?.state === 'suggested' ? 1 : 0), run.n_trials);
+    return `${current} / ${run.n_trials}`;
+  }, [run, nTrials]);
 
   useEffect(() => {
     if (!toast) return;
@@ -21,15 +82,70 @@ export function OptimizerPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadDatasetInfo = async () => {
+      try {
+        const [runs, leaderboard] = await Promise.all([
+          listRuns(),
+          httpClient.get('/leaderboard', { params: { page: 1, page_size: 1 } }),
+        ]);
+
+        if (!active) return;
+        setDatasetInfo({ runs: runs.length, leaderboardTotal: leaderboard.data.total ?? 0, lastSync: new Date().toLocaleTimeString() });
+      } catch {
+        if (!active) return;
+        setDatasetInfo(null);
+      }
+    };
+
+    loadDatasetInfo();
+    return () => {
+      active = false;
+    };
+  }, [run?.id]);
+
+  const stopPolling = () => {
+    if (pollTimer.current) {
+      window.clearInterval(pollTimer.current);
+      pollTimer.current = null;
+    }
+  };
+
+  const startPolling = (runId: string) => {
+    if (pollTimer.current) return;
+    setSseStatus('polling');
+    pushEvent(setEventsLog, 'Live updates unavailable, polling every 2s.');
+
+    pollTimer.current = window.setInterval(async () => {
+      try {
+        const latest = await getRun(runId);
+        setRun(latest);
+        setLastEventTime(new Date().toLocaleTimeString());
+        if (latest.status === 'finished') {
+          stopPolling();
+          setSseStatus('disconnected');
+          pushEvent(setEventsLog, 'Polling stopped (run finished).');
+        }
+      } catch (error) {
+        setErrorBanner(formatApiError(error));
+      }
+    }, 2000);
+  };
+
   const start = async () => {
     setLoading(true);
+    setErrorBanner('');
     try {
       const data = await startRun({ method, n_trials: nTrials, selected_persons: selectedPersons.split(',').map((name) => name.trim()).filter(Boolean) });
       setRun(data);
       setToast({ message: 'Optimization started', kind: 'success' });
-      if (data.latest_trial?.score) {
-        setHistory((prev) => [...prev, { trial: data.latest_trial.trial_number, score: data.latest_trial.score }]);
-      }
+      pushEvent(setEventsLog, `Run started: ${data.id}`);
+      setHistory([]);
+    } catch (error) {
+      setErrorBanner(formatApiError(error));
+      pushEvent(setEventsLog, `Run start failed: ${formatApiError(error)}`);
     } finally {
       setLoading(false);
     }
@@ -38,39 +154,75 @@ export function OptimizerPage() {
   const onSubmitScore = async (e: FormEvent) => {
     e.preventDefault();
     if (!run?.latest_trial) return;
-    const data = await submitScore(run.id, run.latest_trial.id, score);
-    setRun(data);
-    setHistory((prev) => [...prev, { trial: data.trial_count, score }]);
-    setToast({ message: 'Score submitted', kind: 'success' });
+    setErrorBanner('');
+    try {
+      const data = await submitScore(run.id, run.latest_trial.id, score);
+      setRun(data);
+      setHistory((prev) => [...prev, { trial: data.trial_count, score }]);
+      setToast({ message: 'Score submitted', kind: 'success' });
+      pushEvent(setEventsLog, `Score submitted for trial ${run.latest_trial.trial_number}`);
+    } catch (error) {
+      setErrorBanner(formatApiError(error));
+      pushEvent(setEventsLog, `Score submission failed: ${formatApiError(error)}`);
+    }
   };
 
   const onLoadRecommendation = async () => {
     setRecommendationLoading(true);
+    setErrorBanner('');
     try {
       const data = await fetchRecommendation({ dataset_prefix: 'aeropress.', method, best_only: false, prior_weight: 0.666 });
       setRecommendation(data);
       setToast({ message: 'Recommendation loaded', kind: 'info' });
+      pushEvent(setEventsLog, 'Recommendation response received.');
+    } catch (error) {
+      setErrorBanner(formatApiError(error));
+      pushEvent(setEventsLog, `Recommendation failed: ${formatApiError(error)}`);
     } finally {
       setRecommendationLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!run?.id) return;
+    if (!run?.id) return undefined;
+
     const token = localStorage.getItem('coffee_token');
-    if (!token) return;
+    if (!token) return undefined;
+
+    stopPolling();
+    setSseStatus('retrying');
+
     const events = createRunEvents(run.id, token);
+
+    events.onopen = () => {
+      setSseStatus('connected');
+      setErrorBanner('');
+      pushEvent(setEventsLog, 'SSE connected.');
+    };
+
     events.onmessage = (event) => {
       const payload = JSON.parse(event.data);
-      setRun((prev: any) => prev ? { ...prev, status: payload.run_status, best_score: payload.best_score, best_params: payload.best_parameters } : prev);
+      setRun((prev) => prev ? { ...prev, status: payload.run_status, best_score: payload.best_score, best_params: payload.best_parameters } : prev);
+      setLastEventTime(new Date().toLocaleTimeString());
+      pushEvent(setEventsLog, `Event: trial=${payload.trial_number}, status=${payload.run_status}`);
       if (payload.last_trial_score !== null && payload.last_trial_score !== undefined) {
         setHistory((prev) => [...prev, { trial: payload.trial_number, score: payload.last_trial_score }]);
       }
     };
-    return () => events.close();
-  }, [run?.id]);
 
-  const runState = useMemo(() => run?.status ?? 'idle', [run]);
+    events.onerror = () => {
+      setSseStatus('retrying');
+      pushEvent(setEventsLog, 'SSE connection error. Switching to polling fallback.');
+      events.close();
+      startPolling(run.id);
+    };
+
+    return () => {
+      events.close();
+      stopPolling();
+      setSseStatus('disconnected');
+    };
+  }, [run?.id]);
 
   return (
     <section className="optimizer-layout fade-in-up">
@@ -80,6 +232,9 @@ export function OptimizerPage() {
           <span>{toast.message}</span>
         </div>
       ) : null}
+
+      {errorBanner ? <div className="error-banner">{errorBanner}</div> : null}
+
       <div className="panel">
         <p className="eyebrow">Setup</p>
         <h2>Optimizer configuration</h2>
@@ -104,28 +259,40 @@ export function OptimizerPage() {
         </label>
         <button className="btn btn-primary" onClick={start} disabled={loading || runState === 'running'}>
           <BoltIcon size={14} />
-          <span>{loading ? 'Starting...' : 'Start optimisation'}</span>
+          <span>{loading ? 'Starting...' : 'Optimise now'}</span>
         </button>
 
         <hr />
 
-        <h3>Legacy recommendation</h3>
+        <h3>Recommendation</h3>
         <button className="btn btn-secondary" onClick={onLoadRecommendation} disabled={recommendationLoading}>
           <span>{recommendationLoading ? 'Loading recommendation…' : 'Get recommendation'}</span>
         </button>
         {recommendationLoading ? <p className="skeleton shimmer">Preparing recommendation…</p> : null}
-        {recommendation ? <p className="muted">Suggested: {recommendation.suggested_parameters?.[0]?.name}</p> : <p className="muted">No recommendation yet.</p>}
+        {recommendation ? <RecommendationCard recommendation={recommendation} /> : <p className="muted">No recommendation loaded yet.</p>}
+
+        <hr />
+        <h3>Dataset status</h3>
+        {datasetInfo ? (
+          <div className="stats-grid compact">
+            <div className="stat"><span>Runs loaded</span><strong>{datasetInfo.runs}</strong></div>
+            <div className="stat"><span>Leaderboard rows</span><strong>{datasetInfo.leaderboardTotal}</strong></div>
+            <div className="stat"><span>Last sync</span><strong>{datasetInfo.lastSync}</strong></div>
+          </div>
+        ) : <p className="muted">Unable to fetch dataset status from API.</p>}
       </div>
 
       <div className="panel">
-        <p className="eyebrow">Realtime</p>
-        <h2>Live optimization panel</h2>
+        <p className="eyebrow">Run monitor</p>
+        <h2>Live optimisation panel</h2>
+
         <div className="stats-grid">
-          <div className="stat"><span>Status</span><strong>{runState}</strong></div>
-          <div className="stat"><span>Trial</span><strong>{run?.trial_count ?? 0} / {run?.n_trials ?? nTrials}</strong></div>
-          <div className="stat"><span>Best score</span><strong>{run?.best_score ?? '-'}</strong></div>
+          <div className="stat"><span>Run id</span><strong className="mono">{run?.id ?? '-'}</strong></div>
+          <div className="stat"><span>Status</span><strong className={`status-pill ${runState}`}>{runState}</strong></div>
+          <div className="stat"><span>Progress</span><strong>{progressLabel}</strong></div>
         </div>
 
+        <p className="muted">Best score: {run?.best_score ?? '-'}</p>
         <pre className="result-box">{JSON.stringify(run?.best_params ?? {}, null, 2)}</pre>
 
         <div className="chart-wrap">
@@ -141,7 +308,8 @@ export function OptimizerPage() {
 
         {run?.latest_trial?.state === 'suggested' ? (
           <form onSubmit={onSubmitScore} className="form-grid score-form fade-in-up">
-            <h3>Submit score</h3>
+            <h3>Waiting for score</h3>
+            <p className="muted">Trial #{run.latest_trial.trial_number} is waiting for your feedback.</p>
             <pre className="result-box">{JSON.stringify(run.latest_trial.parameters, null, 2)}</pre>
             <label>
               Score
@@ -150,6 +318,22 @@ export function OptimizerPage() {
             <button className="btn btn-primary">Submit score</button>
           </form>
         ) : null}
+
+        <hr />
+
+        <h3>Run activity</h3>
+        <div className="stats-grid compact">
+          <div className="stat"><span>SSE connection</span><strong className={`status-pill ${sseStatus}`}>{sseStatus}</strong></div>
+          <div className="stat"><span>Last event</span><strong>{lastEventTime ?? '-'}</strong></div>
+          <div className="stat"><span>Events logged</span><strong>{eventsLog.length}</strong></div>
+        </div>
+        {sseStatus === 'polling' ? <p className="warning-banner">Live updates unavailable, polling…</p> : null}
+
+        <div className="activity-log">
+          {eventsLog.length ? eventsLog.map((entry) => (
+            <p key={entry.id}><strong>{entry.at}</strong> — {entry.message}</p>
+          )) : <p className="muted">No activity yet.</p>}
+        </div>
       </div>
     </section>
   );
