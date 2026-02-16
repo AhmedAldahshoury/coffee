@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { httpClient, apiBaseUrl, formatApiError } from '../shared/api/httpClient';
 import { useThemeStore } from '../shared/config/themeStore';
-import { HomeIcon, LogoMark, LogoutIcon, MoonIcon, SparkIcon, SunIcon, TrophyIcon, UserIcon } from './icons';
+import { CoffeeIcon, HomeIcon, LogoMark, LogoutIcon, MoonIcon, SparkIcon, SunIcon, TrophyIcon, UserIcon } from './icons';
 
 interface Props { children: ReactNode }
 
@@ -13,6 +13,7 @@ interface NavEntry {
 }
 
 const navEntries: NavEntry[] = [
+  { to: '/brew', label: 'Brew Session', icon: CoffeeIcon },
   { to: '/optimizer', label: 'Optimizer', icon: HomeIcon },
   { to: '/leaderboard', label: 'Leaderboard', icon: TrophyIcon },
   { to: '/account', label: 'Account', icon: UserIcon },
@@ -78,7 +79,7 @@ export function AppShell({ children }: Props) {
           <LogoMark />
           <div>
             <h1>Coffee Optimizer</h1>
-            <p>Dial in each brew with premium precision.</p>
+            <p>Guided brewing, optimisation and tasting intelligence.</p>
           </div>
         </div>
 

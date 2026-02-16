@@ -52,6 +52,12 @@ VITE_API_URL=http://localhost:8000/api/v1 npm run dev
 4. Submit score when a trial is in `suggested` state.
 5. Monitor leaderboard and dataset visibility from frontend status panels.
 
+
+## Guided Brew Session
+- Visit `/brew` for the guided workflow: **Setup → Brew timer → Rate → Save → Learn**.
+- Apply current optimiser suggestions directly into session setup when a run is active.
+- Submit score back to active optimiser trial and store session notes/taste tags in localStorage.
+
 ## SSE payload
 Each event includes:
 - `trial_number`
