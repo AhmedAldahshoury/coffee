@@ -1,22 +1,24 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from coffee_backend.core.config import get_settings
 
-# bcrypt truncates passwords after 72 bytes; bcrypt_sha256 pre-hashes to avoid that limit.
-# Keep plain bcrypt as a secondary scheme to support any legacy hashes.
-pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
+password_hasher = PasswordHasher()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return password_hasher.verify(hashed_password, plain_password)
+    except (VerifyMismatchError, InvalidHashError):
+        return False
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return password_hasher.hash(password)
 
 
 def create_access_token(user_id: UUID) -> str:
