@@ -8,7 +8,11 @@ app = typer.Typer(help="User commands")
 
 
 @app.command("create")
-def create_user(email: str, password: str, name: str = "") -> None:
+def create_user(
+    email: str = typer.Option(..., "--email", help="User email"),
+    password: str = typer.Option(..., "--password", help="User password"),
+    name: str = typer.Option("", "--name", help="Optional display name"),
+) -> None:
     with SessionLocal() as db:
         user = UserService(db).create_user(UserCreate(email=email, password=password, name=name or None))
         typer.echo(f"Created user {user.id} ({user.email})")
