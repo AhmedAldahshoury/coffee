@@ -6,7 +6,9 @@ from passlib.context import CryptContext
 
 from coffee_backend.core.config import get_settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt truncates passwords after 72 bytes; bcrypt_sha256 pre-hashes to avoid that limit.
+# Keep plain bcrypt as a secondary scheme to support any legacy hashes.
+pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
