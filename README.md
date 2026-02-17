@@ -26,18 +26,24 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
 cp .env.example .env
+# Optional: set DATABASE_URL to local Postgres if desired
 alembic upgrade head
 coffee api run
 ```
 
 ## Environment variables
 See `.env.example`:
-- `DATABASE_URL`
+- `DATABASE_URL` (defaults to local SQLite for no-Docker startup)
 - `JWT_SECRET`
 - `JWT_EXPIRY_MINUTES`
 - `APP_ENV`
 - `DEMO_MODE`
 - `FAILED_BREW_SCORE`
+
+### Database URL notes
+- **Local without Docker**: keep `DATABASE_URL=sqlite:///./coffee.db`.
+- **Local with Postgres on host**: use `postgresql+psycopg://coffee:coffee@localhost:5432/coffee`.
+- **Docker Compose**: service config overrides to `postgresql+psycopg://coffee:coffee@postgres:5432/coffee` automatically.
 
 ## API examples
 ```bash
@@ -83,3 +89,7 @@ black --check .
 mypy src
 pytest
 ```
+
+## Troubleshooting
+- If `alembic upgrade head` fails with `failed to resolve host 'postgres'`, your local shell is using a Docker-only DB URL.
+  - Fix by setting `DATABASE_URL=sqlite:///./coffee.db` (quickest) or `...@localhost:5432/...` for local Postgres.
