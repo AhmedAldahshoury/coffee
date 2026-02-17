@@ -18,7 +18,10 @@ class OptimisationService:
     def __init__(self, db: Session):
         self.db = db
         self.settings = get_settings()
-        self.storage = optuna.storages.RDBStorage(url=self.settings.database_url)
+        self.storage = optuna.storages.RDBStorage(
+            url=self.settings.database_url,
+            skip_compatibility_check=self.settings.optuna_skip_compatibility_check,
+        )
 
     def build_study_key(self, user_id: UUID, req: StudyRequest) -> str:
         return (

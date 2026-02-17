@@ -12,13 +12,13 @@ app = typer.Typer(help="Brew commands")
 
 @app.command("add")
 def add_brew(
-    user_id: UUID,
-    method: str,
-    brewed_at: str,
-    parameters_json: str,
-    score: float | None = None,
-    failed: bool = False,
-    comments: str = "",
+    user_id: UUID = typer.Option(..., "--user-id", help="Owner user id"),
+    method: str = typer.Option(..., "--method", help="Brew method, e.g. aeropress"),
+    brewed_at: str = typer.Option(..., "--brewed-at", help="ISO timestamp"),
+    parameters_json: str = typer.Option(..., "--parameters-json", help="JSON object of brew parameters"),
+    score: float | None = typer.Option(None, "--score", help="Optional brew score"),
+    failed: bool = typer.Option(False, "--failed", help="Mark brew as failed"),
+    comments: str = typer.Option("", "--comments", help="Optional comments"),
 ) -> None:
     import json
 
@@ -36,14 +36,17 @@ def add_brew(
 
 
 @app.command("list")
-def list_brews(user_id: UUID) -> None:
+def list_brews(user_id: UUID = typer.Option(..., "--user-id", help="Owner user id")) -> None:
     with SessionLocal() as db:
         for brew in BrewService(db).list_brews(user_id):
             typer.echo(f"{brew.id} {brew.method} score={brew.score}")
 
 
 @app.command("show")
-def show_brew(user_id: UUID, brew_id: UUID) -> None:
+def show_brew(
+    user_id: UUID = typer.Option(..., "--user-id", help="Owner user id"),
+    brew_id: UUID = typer.Option(..., "--brew-id", help="Brew id"),
+) -> None:
     with SessionLocal() as db:
         brew = BrewService(db).get_brew(user_id, brew_id)
         typer.echo(f"{brew.id} {brew.parameters}")

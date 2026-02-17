@@ -39,6 +39,7 @@ See `.env.example`:
 - `APP_ENV`
 - `DEMO_MODE`
 - `FAILED_BREW_SCORE`
+- `OPTUNA_SKIP_COMPATIBILITY_CHECK` (default `true` to tolerate existing Optuna schema-version mismatches)
 
 ### Database URL notes
 - **Local without Docker**: keep `DATABASE_URL=sqlite:///./coffee.db`.
@@ -93,3 +94,5 @@ pytest
 ## Troubleshooting
 - If `alembic upgrade head` fails with `failed to resolve host 'postgres'`, your local shell is using a Docker-only DB URL.
   - Fix by setting `DATABASE_URL=sqlite:///./coffee.db` (quickest) or `...@localhost:5432/...` for local Postgres.
+
+- If Optuna reports schema/runtime compatibility errors, upgrade dependency (`pip install -U optuna`) and keep `OPTUNA_SKIP_COMPATIBILITY_CHECK=true` for mixed/local legacy DBs.

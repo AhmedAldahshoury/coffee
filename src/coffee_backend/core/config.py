@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     jwt_expiry_minutes: int = 60
     demo_mode: bool = False
     failed_brew_score: float = 0.0
+    optuna_skip_compatibility_check: bool = True
     log_level: str = "INFO"
 
 
