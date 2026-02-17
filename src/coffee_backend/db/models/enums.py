@@ -1,7 +1,7 @@
-from enum import StrEnum
+from enum import Enum
 
 
-class BrewMethod(StrEnum):
+class BrewMethod(str, Enum):
     AEROPRESS = "aeropress"
     POUROVER = "pourover"
     ESPRESSO = "espresso"

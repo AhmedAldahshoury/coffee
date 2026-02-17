@@ -7,7 +7,7 @@ name = "coffee-optimiser-backend"
 version = "0.1.0"
 description = "Production-grade backend platform for Coffee Optimiser"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 authors = [{ name = "Coffee Optimiser" }]
 dependencies = [
   "fastapi>=0.115.0",
@@ -44,11 +44,11 @@ packages = ["src/coffee_backend"]
 
 [tool.black]
 line-length = 100
-target-version = ["py312"]
+target-version = ["py310"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py310"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -56,7 +56,7 @@ select = ["E", "F", "I", "UP", "B", "N", "C4", "SIM", "RUF"]
 ignore = ["B008"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

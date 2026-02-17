@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 import optuna
@@ -99,5 +99,5 @@ class OptimisationService:
             study_key=study_key,
             trial_count=len(completed),
             parameter_importance=importance,
-            generated_at=datetime.now(UTC),
+            generated_at=datetime.now(timezone.utc),
         )

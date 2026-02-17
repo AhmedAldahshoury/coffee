@@ -1,7 +1,7 @@
 import csv
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -40,7 +40,7 @@ class ImportExportService:
         with data_path.open("r", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
             for row in reader:
-                brewed_at = datetime.fromisoformat(row.get("date", datetime.now(UTC).isoformat()))
+                brewed_at = datetime.fromisoformat(row.get("date", datetime.now(timezone.utc).isoformat()))
                 score_value = row.get("score")
                 score = float(score_value) if score_value not in (None, "") else None
                 failed = row.get("failed", "false").lower() == "true"

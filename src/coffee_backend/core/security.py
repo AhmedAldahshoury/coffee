@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from jose import JWTError, jwt
@@ -19,7 +19,7 @@ def hash_password(password: str) -> str:
 
 def create_access_token(user_id: UUID) -> str:
     settings = get_settings()
-    expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_expiry_minutes)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expiry_minutes)
     payload = {"sub": str(user_id), "exp": expire}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
