@@ -16,6 +16,7 @@ from coffee_backend.api.routers import (
     equipment,
     health,
     import_export,
+    methods,
     optimisation,
     recipes,
     users,
@@ -24,6 +25,7 @@ from coffee_backend.core.config import Settings, get_settings
 from coffee_backend.core.exceptions import APIError, ConflictError
 from coffee_backend.core.logging import configure_logging, request_id_ctx_var
 from coffee_backend.db.session import dispose_db_state, init_db_state
+from coffee_backend.services.method_profile_service import seed_method_profiles
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -61,6 +63,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("app.startup", extra={"app_env": resolved_settings.app_env})
         init_db_state(app.state, settings=resolved_settings)
+        session_factory = app.state.db_sessionmaker
+        with session_factory() as db:
+            seed_method_profiles(db)
         try:
             yield
         finally:
@@ -110,6 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(optimisation.router, prefix="/api/v1")
     app.include_router(import_export.router, prefix="/api/v1")
     app.include_router(analytics.router, prefix="/api/v1")
+    app.include_router(methods.router, prefix="/api/v1")
     return app
 
 

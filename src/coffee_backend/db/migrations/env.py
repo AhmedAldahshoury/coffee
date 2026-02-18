@@ -13,7 +13,15 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from coffee_backend.db.base import Base
-from coffee_backend.db.models import bean, brew, equipment, optuna_study, recipe, user  # noqa: F401
+from coffee_backend.db.models import (
+    bean,
+    brew,
+    equipment,
+    method_profile,
+    optuna_study,
+    recipe,
+    user,
+)  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
