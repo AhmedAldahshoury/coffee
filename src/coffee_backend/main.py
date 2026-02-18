@@ -1,7 +1,10 @@
-from collections.abc import AsyncIterator
+import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 from sqlalchemy.exc import IntegrityError
 
@@ -17,28 +20,70 @@ from coffee_backend.api.routers import (
     recipes,
     users,
 )
-from coffee_backend.core.config import Settings
+from coffee_backend.core.config import Settings, get_settings
 from coffee_backend.core.exceptions import APIError, ConflictError
-from coffee_backend.core.logging import configure_logging
+from coffee_backend.core.logging import configure_logging, request_id_ctx_var
 from coffee_backend.db.session import dispose_db_state, init_db_state
 
 configure_logging()
+logger = logging.getLogger(__name__)
+
+
+class RequestIDMiddleware:
+    def __init__(self, app: Callable[[Request], Awaitable[Response]]):
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive=receive)
+        request_id = request.headers.get("x-request-id") or str(uuid4())
+        token = request_id_ctx_var.set(request_id)
+
+        async def send_wrapper(message: dict) -> None:
+            if message.get("type") == "http.response.start":
+                headers = message.setdefault("headers", [])
+                headers.append((b"x-request-id", request_id.encode()))
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            request_id_ctx_var.reset(token)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
+    resolved_settings = settings or get_settings()
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        init_db_state(app.state, settings=settings)
+        logger.info("app.startup", extra={"app_env": resolved_settings.app_env})
+        init_db_state(app.state, settings=resolved_settings)
         try:
             yield
         finally:
             dispose_db_state(app.state)
+            logger.info("app.shutdown")
 
     app = FastAPI(
         title="Coffee Optimiser Backend",
         default_response_class=ORJSONResponse,
         lifespan=lifespan,
     )
+
+    if resolved_settings.enable_request_id_middleware:
+        app.add_middleware(RequestIDMiddleware)
+
+    if resolved_settings.cors_allowed_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=resolved_settings.cors_allowed_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     @app.exception_handler(APIError)
     async def handle_api_error(_: Request, exc: APIError) -> ORJSONResponse:

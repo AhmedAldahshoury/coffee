@@ -20,7 +20,7 @@ def test_app_start_with_test_database_url(test_settings: Settings) -> None:
         response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "db": "ok"}
 
 
 def test_create_and_read_brew_in_single_client_session(client: TestClient) -> None:

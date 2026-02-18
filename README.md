@@ -33,18 +33,35 @@ coffee api run
 
 ## Environment variables
 See `.env.example`:
+- `APP_ENV` (`local`/`production`; production enforces strict secret checks)
 - `DATABASE_URL` (defaults to local SQLite for no-Docker startup)
-- `JWT_SECRET`
+- `JWT_SECRET` (**required in production**, fail-fast if unset/default)
+- `JWT_ALGORITHM`
 - `JWT_EXPIRY_MINUTES`
-- `APP_ENV`
 - `DEMO_MODE`
 - `FAILED_BREW_SCORE`
+- `LOG_LEVEL`
+- `CORS_ALLOWED_ORIGINS` (comma-separated list, default empty = deny by default)
+- `ENABLE_REQUEST_ID_MIDDLEWARE`
+- `HASH_TIME_COST`, `HASH_MEMORY_COST`, `HASH_PARALLELISM` (Argon2 settings)
 - `OPTUNA_SKIP_COMPATIBILITY_CHECK` (default `true` to tolerate existing Optuna schema-version mismatches)
 
 ### Database URL notes
 - **Local without Docker**: keep `DATABASE_URL=sqlite:///./coffee.db`.
 - **Local with Postgres on host**: use `postgresql+psycopg://coffee:coffee@localhost:5432/coffee`.
 - **Docker Compose**: service config overrides to `postgresql+psycopg://coffee:coffee@postgres:5432/coffee` automatically.
+
+## Production deployment checklist
+- Set `APP_ENV=production`.
+- Provide a strong `JWT_SECRET` (do not use `change-me` or `dev-secret`).
+- Set `DATABASE_URL` to managed Postgres and run `alembic upgrade head`.
+- Set explicit `CORS_ALLOWED_ORIGINS` for your frontend origins.
+- Tune `LOG_LEVEL` and aggregate structured JSON logs.
+- Keep request tracing enabled (`ENABLE_REQUEST_ID_MIDDLEWARE=true`).
+- Review Argon2 settings (`HASH_TIME_COST`, `HASH_MEMORY_COST`, `HASH_PARALLELISM`) for your infrastructure.
+- Do not use docker-compose example credentials in production.
+- Configure HTTPS/TLS at ingress/load balancer.
+- Auth rate limiting is not yet implemented server-side; enforce minimal rate limits at gateway/WAF/reverse proxy.
 
 ## API examples
 ```bash
