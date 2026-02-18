@@ -75,6 +75,7 @@ class ImportExportService:
         imported = 0
         skipped = 0
         errors: list[CSVImportError] = []
+        seen_import_hashes: set[str] = set()
 
         with data_path.open("r", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
@@ -117,10 +118,17 @@ class ImportExportService:
                     validate_method_parameters(method, params)
 
                     import_hash = self._hash_brew(user_id, brewed_at, params, score)
+                    if import_hash in seen_import_hashes:
+                        skipped += 1
+                        continue
+
                     existing = self.db.scalar(select(Brew).where(Brew.import_hash == import_hash))
                     if existing:
                         skipped += 1
+                        seen_import_hashes.add(import_hash)
                         continue
+
+                    seen_import_hashes.add(import_hash)
 
                     brew = Brew(
                         user_id=user_id,
