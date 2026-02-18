@@ -19,7 +19,7 @@ def add_brew(
         ..., "--parameters-json", help="JSON object of brew parameters"
     ),
     score: float | None = typer.Option(None, "--score", help="Optional brew score"),
-    failed: bool = typer.Option(False, "--failed", help="Mark brew as failed"),
+    status: str = typer.Option("ok", "--status", help="Brew status: ok or failed"),
     comments: str = typer.Option("", "--comments", help="Optional comments"),
 ) -> None:
     import json
@@ -29,7 +29,7 @@ def add_brew(
         brewed_at=datetime.fromisoformat(brewed_at),
         parameters=json.loads(parameters_json),
         score=score,
-        failed=failed,
+        status=status,
         comments=comments or None,
     )
     with get_cli_db_session() as db:

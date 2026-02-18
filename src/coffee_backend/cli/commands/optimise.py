@@ -25,7 +25,7 @@ def suggest(
     )
     with get_cli_db_session() as db:
         s = OptimisationService(db).suggest(user_id, req)
-        typer.echo(f"{s.id} {s.suggested_parameters}")
+        typer.echo(f"{s.id} {s.suggested_params}")
 
 
 @app.command("apply")

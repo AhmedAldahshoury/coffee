@@ -23,7 +23,7 @@ def test_create_brew(client):
             },
             "brewed_at": datetime.now(timezone.utc).isoformat(),
             "score": 8.5,
-            "failed": False,
+            "status": "ok",
         },
     )
     assert response.status_code == 201

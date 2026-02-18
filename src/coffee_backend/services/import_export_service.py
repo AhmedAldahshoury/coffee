@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from coffee_backend.core.exceptions import ValidationError
 from coffee_backend.db.models.brew import Brew
+from coffee_backend.db.models.enums import BrewStatus
 from coffee_backend.schemas.import_export import (
     CSVExportResult,
     CSVImportError,
@@ -92,6 +93,7 @@ class ImportExportService:
                     score_value = row.get("score")
                     score = float(score_value) if score_value not in (None, "") else None
                     failed = row.get("failed", "false").lower() == "true"
+                    status = BrewStatus.FAILED if failed else BrewStatus.OK
                     comments = row.get("comments")
                     known = {"date", "score", "failed", "comments", "method"}
                     aliases = LEGACY_IMPORT_ALIASES.get(method, {})
@@ -144,7 +146,7 @@ class ImportExportService:
                         extra_data=extra_data or None,
                         brewed_at=brewed_at,
                         score=score,
-                        failed=failed,
+                        status=status,
                         comments=comments,
                         import_hash=import_hash,
                     )
@@ -192,7 +194,7 @@ class ImportExportService:
                 "method",
                 "brewed_at",
                 "score",
-                "failed",
+                "status",
                 "comments",
                 "parameters",
                 "extra_data",
@@ -206,7 +208,9 @@ class ImportExportService:
                         "method": brew.method,
                         "brewed_at": brew.brewed_at.isoformat(),
                         "score": brew.score,
-                        "failed": brew.failed,
+                        "status": (
+                            brew.status.value if hasattr(brew.status, "value") else brew.status
+                        ),
                         "comments": brew.comments,
                         "parameters": json.dumps(brew.parameters),
                         "extra_data": json.dumps(brew.extra_data),

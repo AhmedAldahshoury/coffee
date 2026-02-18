@@ -50,7 +50,8 @@ class Suggestion(Base, UUIDMixin, TimestampMixin):
     brew_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("brews.id"), nullable=True)
     study_key: Mapped[str] = mapped_column(String(255), index=True)
     trial_number: Mapped[int] = mapped_column()
-    suggested_parameters: Mapped[dict[str, object]] = mapped_column(JSON)
+    suggested_params: Mapped[dict[str, object]] = mapped_column(JSON)
+    actual_params: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="issued", index=True)
 
     user = relationship("User", back_populates="suggestions")

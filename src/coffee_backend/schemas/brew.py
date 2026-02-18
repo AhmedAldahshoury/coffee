@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -15,7 +16,7 @@ class BrewCreate(BaseModel):
     parameters: dict[str, object] = Field(default_factory=dict)
     brewed_at: datetime
     score: float | None = None
-    failed: bool = False
+    status: Literal["ok", "failed"] = "ok"
     comments: str | None = None
     tags: list[str] | None = None
     extra_data: dict[str, object] | None = None

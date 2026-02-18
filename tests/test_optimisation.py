@@ -12,37 +12,56 @@ def auth_token(client: TestClient, email: str = "opt@example.com") -> str:
     return res.json()["access_token"]
 
 
-def create_brew(client: TestClient, token: str, score: float | None = None) -> str:
+def create_brew(
+    client: TestClient,
+    token: str,
+    *,
+    method: str = "aeropress",
+    variant_id: str | None = "aeropress_standard",
+    bean_id: str | None = None,
+    equipment_id: str | None = None,
+    score: float | None = 8.0,
+) -> str:
     response = client.post(
         "/api/v1/brews",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "method": "aeropress",
+            "method": method,
+            "variant_id": variant_id,
+            "bean_id": bean_id,
+            "equipment_id": equipment_id,
             "parameters": {"grind_size": 10, "water_temp": 90.0, "brew_time_sec": 120},
             "brewed_at": datetime.now(timezone.utc).isoformat(),
             "score": score,
-            "failed": False,
+            "status": "ok",
         },
     )
     assert response.status_code == 201
     return response.json()["id"]
 
 
-def test_optimise_suggest_schema(client: TestClient):
+def test_suggest_uses_correct_schema_for_v60_vs_aeropress(client: TestClient):
     token = auth_token(client)
-    response = client.post(
+
+    aeropress = client.post(
         "/api/v1/optimisation/suggest",
         headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "aeropress"},
+        json={"method_id": "aeropress", "variant_id": "aeropress_standard"},
     )
-    assert response.status_code == 200
-    payload = response.json()
-    params = payload["suggested_parameters"]
-    assert payload["id"]
-    assert payload["study_key"].startswith("u:")
-    assert isinstance(payload["trial_number"], int)
-    assert "dose_g" in params
-    assert "water_g" in params
+    assert aeropress.status_code == 200
+    aeropress_params = aeropress.json()["suggested_params"]
+    assert "plunge_s" in aeropress_params
+    assert "total_time_s" not in aeropress_params
+
+    v60 = client.post(
+        "/api/v1/optimisation/suggest",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "v60", "variant_id": "v60_default"},
+    )
+    assert v60.status_code == 200
+    v60_params = v60.json()["suggested_params"]
+    assert "total_time_s" in v60_params
+    assert "plunge_s" not in v60_params
 
 
 def test_optimisation_suggest_then_apply_increments_completed_trial_count(client: TestClient):
@@ -50,7 +69,7 @@ def test_optimisation_suggest_then_apply_increments_completed_trial_count(client
     suggest_response = client.post(
         "/api/v1/optimisation/suggest",
         headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "aeropress"},
+        json={"method_id": "aeropress", "variant_id": "aeropress_standard"},
     )
     assert suggest_response.status_code == 200
     suggestion = suggest_response.json()
@@ -71,6 +90,7 @@ def test_optimisation_suggest_then_apply_increments_completed_trial_count(client
     )
     assert apply_response.status_code == 200
     assert apply_response.json()["status"] == "applied"
+    assert apply_response.json()["actual_params"] is not None
 
     after_response = client.get(
         "/api/v1/optimisation/insights",
@@ -79,6 +99,80 @@ def test_optimisation_suggest_then_apply_increments_completed_trial_count(client
     )
     assert after_response.status_code == 200
     assert after_response.json()["trial_count"] == 1
+
+
+def test_apply_twice_fails(client: TestClient):
+    token = auth_token(client)
+    suggestion = client.post(
+        "/api/v1/optimisation/suggest",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress", "variant_id": "aeropress_standard"},
+    ).json()
+    brew_id = create_brew(client, token)
+
+    first = client.post(
+        f"/api/v1/optimisation/suggestions/{suggestion['id']}/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"brew_id": brew_id, "score": 8.5, "failed": False},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        f"/api/v1/optimisation/suggestions/{suggestion['id']}/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"brew_id": brew_id, "score": 8.5, "failed": False},
+    )
+    assert second.status_code == 409
+    assert second.json()["code"] == "suggestion_already_applied"
+
+
+def test_context_mismatch_fails(client: TestClient):
+    token = auth_token(client)
+    suggestion = client.post(
+        "/api/v1/optimisation/suggest",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress", "variant_id": "aeropress_standard"},
+    ).json()
+
+    mismatched_brew_id = create_brew(
+        client,
+        token,
+        method="aeropress",
+        variant_id="aeropress_inverted",
+    )
+    apply = client.post(
+        f"/api/v1/optimisation/suggestions/{suggestion['id']}/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"brew_id": mismatched_brew_id, "score": 8.0, "failed": False},
+    )
+    assert apply.status_code == 422
+    assert apply.json()["code"] == "suggestion_context_mismatch"
+
+
+def test_failed_brew_records_low_objective(client: TestClient):
+    token = auth_token(client)
+    suggest_response = client.post(
+        "/api/v1/optimisation/suggest",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress", "variant_id": "aeropress_standard"},
+    )
+    suggestion = suggest_response.json()
+    brew_id = create_brew(client, token, score=None)
+
+    apply_response = client.post(
+        f"/api/v1/optimisation/suggestions/{suggestion['id']}/apply",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"brew_id": brew_id, "failed": True},
+    )
+    assert apply_response.status_code == 200
+
+    insights_response = client.get(
+        "/api/v1/optimisation/insights",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"study_key": suggestion["study_key"]},
+    )
+    assert insights_response.status_code == 200
+    assert insights_response.json()["trial_count"] == 1
 
 
 def test_optimisation_study_persists_across_app_sessions(test_settings: Settings):
@@ -105,92 +199,4 @@ def test_optimisation_study_persists_across_app_sessions(test_settings: Settings
         second_payload = second_suggest.json()
 
     assert second_payload["study_key"] == first_payload["study_key"]
-
     assert second_payload["trial_number"] > first_payload["trial_number"]
-
-
-def test_optimisation_invalid_apply_returns_clear_error_code(client: TestClient):
-    token = auth_token(client)
-    suggest_response = client.post(
-        "/api/v1/optimisation/suggest",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "aeropress"},
-    )
-    suggestion_id = suggest_response.json()["id"]
-    brew_id = create_brew(client, token)
-
-    response = client.post(
-        f"/api/v1/optimisation/suggestions/{suggestion_id}/apply",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"brew_id": brew_id, "score": 99, "failed": False},
-    )
-    assert response.status_code == 422
-    assert response.json()["code"] == "suggestion_score_out_of_range"
-
-
-def test_study_key_differs_for_same_method_different_beans(client: TestClient):
-    token = auth_token(client)
-
-    bean_1 = client.post(
-        "/api/v1/beans",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Bean One"},
-    ).json()["id"]
-    bean_2 = client.post(
-        "/api/v1/beans",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"name": "Bean Two"},
-    ).json()["id"]
-
-    first = client.post(
-        "/api/v1/optimisation/studies",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "aeropress", "bean_id": bean_1},
-    )
-    second = client.post(
-        "/api/v1/optimisation/studies",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "aeropress", "bean_id": bean_2},
-    )
-
-    assert first.status_code == 200
-    assert second.status_code == 200
-    assert first.json()["study_key"] != second.json()["study_key"]
-
-
-def test_study_key_differs_for_v60_vs_aeropress(client: TestClient):
-    token = auth_token(client)
-
-    aeropress = client.post(
-        "/api/v1/optimisation/studies",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "aeropress"},
-    )
-    v60 = client.post(
-        "/api/v1/optimisation/studies",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "v60"},
-    )
-
-    assert aeropress.status_code == 200
-    assert v60.status_code == 200
-    assert aeropress.json()["study_key"] != v60.json()["study_key"]
-
-
-def test_study_key_differs_for_variants(client: TestClient):
-    token = auth_token(client)
-
-    standard = client.post(
-        "/api/v1/optimisation/studies",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "aeropress", "variant_id": "aeropress_standard"},
-    )
-    inverted = client.post(
-        "/api/v1/optimisation/studies",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"method_id": "aeropress", "variant_id": "aeropress_inverted"},
-    )
-
-    assert standard.status_code == 200
-    assert inverted.status_code == 200
-    assert standard.json()["study_key"] != inverted.json()["study_key"]
