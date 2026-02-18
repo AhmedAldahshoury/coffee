@@ -3,7 +3,7 @@ from uuid import UUID
 
 import typer
 
-from coffee_backend.db.session import SessionLocal
+from coffee_backend.cli.db import get_cli_db_session
 from coffee_backend.schemas.brew import BrewCreate
 from coffee_backend.services.brew_service import BrewService
 
@@ -32,14 +32,14 @@ def add_brew(
         failed=failed,
         comments=comments or None,
     )
-    with SessionLocal() as db:
+    with get_cli_db_session() as db:
         brew = BrewService(db).create_brew(user_id, payload)
         typer.echo(f"Created brew {brew.id}")
 
 
 @app.command("list")
 def list_brews(user_id: UUID = typer.Option(..., "--user-id", help="Owner user id")) -> None:
-    with SessionLocal() as db:
+    with get_cli_db_session() as db:
         for brew in BrewService(db).list_brews(user_id):
             typer.echo(f"{brew.id} {brew.method} score={brew.score}")
 
@@ -49,6 +49,6 @@ def show_brew(
     user_id: UUID = typer.Option(..., "--user-id", help="Owner user id"),
     brew_id: UUID = typer.Option(..., "--brew-id", help="Brew id"),
 ) -> None:
-    with SessionLocal() as db:
+    with get_cli_db_session() as db:
         brew = BrewService(db).get_brew(user_id, brew_id)
         typer.echo(f"{brew.id} {brew.parameters}")

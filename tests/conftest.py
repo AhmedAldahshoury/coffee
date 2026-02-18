@@ -1,39 +1,31 @@
-import os
 from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
 
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ["JWT_SECRET"] = "test-secret"
-
-from coffee_backend.api.deps import get_db
+from coffee_backend.core.config import Settings
 from coffee_backend.db.base import Base
-from coffee_backend.main import app
+from coffee_backend.db.session import create_engine_from_settings
+from coffee_backend.main import create_app
 
-engine = create_engine("sqlite:///./test.db", connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
+
+@pytest.fixture(scope="session")
+def test_settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
+    db_path = tmp_path_factory.mktemp("db") / "test.db"
+    return Settings(database_url=f"sqlite:///{db_path}", jwt_secret="test-secret")
 
 
 @pytest.fixture(autouse=True)
-def reset_db() -> Generator[None, None, None]:
+def reset_db(test_settings: Settings) -> Generator[None, None, None]:
+    engine = create_engine_from_settings(test_settings)
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    engine.dispose()
     yield
 
 
 @pytest.fixture
-def client() -> Generator[TestClient, None, None]:
-    def override_get_db() -> Generator[Session, None, None]:
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
+def client(test_settings: Settings) -> Generator[TestClient, None, None]:
+    app = create_app(test_settings)
     with TestClient(app) as c:
         yield c
-    app.dependency_overrides.clear()
