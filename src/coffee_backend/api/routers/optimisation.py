@@ -2,7 +2,7 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.orm import Session
 
 from coffee_backend.api.deps import get_current_user
@@ -14,6 +14,8 @@ from coffee_backend.schemas.optimisation import (
     StudyContextRead,
     StudyRequest,
     SuggestionRead,
+    WarmStartRequest,
+    WarmStartResponse,
 )
 from coffee_backend.services.optimisation_service import OptimisationService
 
@@ -23,7 +25,19 @@ logger = logging.getLogger(__name__)
 
 @router.post("/studies", response_model=StudyContextRead)
 def create_study(
-    payload: StudyRequest,
+    payload: Annotated[
+        StudyRequest,
+        Body(
+            examples=[
+                {
+                    "method_id": "v60",
+                    "variant_id": "v60_default",
+                    "bean_id": None,
+                    "equipment_id": None,
+                }
+            ]
+        ),
+    ],
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> StudyContextRead:
@@ -42,9 +56,38 @@ def create_study(
     )
 
 
+@router.post("/warm_start", response_model=WarmStartResponse)
+def warm_start(
+    payload: Annotated[
+        WarmStartRequest,
+        Body(
+            examples=[
+                {
+                    "method_id": "aeropress",
+                    "variant_id": "aeropress_standard",
+                    "bean_id": None,
+                    "equipment_id": None,
+                    "limit": 20,
+                }
+            ]
+        ),
+    ],
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> WarmStartResponse:
+    logger.info(
+        "optimisation.warm_start.requested",
+        extra={"user_id": str(user.id), "method_id": payload.method_id},
+    )
+    return OptimisationService(db).warm_start(user.id, payload)
+
+
 @router.post("/suggest", response_model=SuggestionRead)
 def suggest(
-    payload: StudyRequest,
+    payload: Annotated[
+        StudyRequest,
+        Body(examples=[{"method_id": "aeropress", "variant_id": "aeropress_standard"}]),
+    ],
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):

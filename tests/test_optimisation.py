@@ -200,3 +200,44 @@ def test_optimisation_study_persists_across_app_sessions(test_settings: Settings
 
     assert second_payload["study_key"] == first_payload["study_key"]
     assert second_payload["trial_number"] > first_payload["trial_number"]
+
+
+def test_warm_start_is_idempotent(client: TestClient):
+    token = auth_token(client, email="warmstart@example.com")
+
+    create_brew(client, token, score=7.1)
+    create_brew(client, token, score=8.4)
+
+    payload = {"method_id": "aeropress", "variant_id": "aeropress_standard", "limit": 10}
+    first = client.post(
+        "/api/v1/optimisation/warm_start",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload,
+    )
+    assert first.status_code == 200
+    assert first.json()["added"] == 2
+
+    second = client.post(
+        "/api/v1/optimisation/warm_start",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload,
+    )
+    assert second.status_code == 200
+    assert second.json()["added"] == 0
+    assert second.json()["skipped"] == 2
+
+    suggest_response = client.post(
+        "/api/v1/optimisation/suggest",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress", "variant_id": "aeropress_standard"},
+    )
+    assert suggest_response.status_code == 200
+    study_key = suggest_response.json()["study_key"]
+
+    insights = client.get(
+        "/api/v1/optimisation/insights",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"study_key": study_key},
+    )
+    assert insights.status_code == 200
+    assert insights.json()["trial_count"] == 2
