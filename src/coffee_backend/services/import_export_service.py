@@ -16,7 +16,20 @@ from coffee_backend.schemas.import_export import (
     CSVImportRequest,
     CSVImportResult,
 )
+from coffee_backend.schemas.parameter_registry import METHOD_PARAMETER_REGISTRY
 from coffee_backend.services.parameter_validation import validate_method_parameters
+
+LEGACY_IMPORT_ALIASES: dict[str, dict[str, str]] = {
+    "aeropress": {
+        "coffee amount": "coffee_g",
+        "grinder setting": "grind_size",
+        "temperature": "water_temp",
+        "brewing time": "brew_time_sec",
+        "anti-static water": "water_g",
+    }
+}
+
+LEGACY_EXTRA_DATA_KEYS: dict[str, set[str]] = {"aeropress": {"brand", "pressing time"}}
 
 
 class ImportExportService:
@@ -44,12 +57,21 @@ class ImportExportService:
             return int(value)
         return value
 
+    def _normalise_legacy_param(self, method: str, key: str, value: object) -> object:
+        if method == "aeropress" and key == "grind_size" and isinstance(value, int) and value > 15:
+            return max(1, min(15, round(value / 4)))
+        return value
+
+    def _is_legacy_reviewer_column(self, key: str) -> bool:
+        return key.isalpha() and key[:1].isupper()
+
     def import_csv(self, user_id: UUID, request: CSVImportRequest) -> CSVImportResult:
         data_path = Path(request.data_path)
         if not data_path.exists():
             raise ValidationError("Data file not found", code="data_file_not_found")
 
         method = request.method or data_path.name.split(".")[0]
+        schema = METHOD_PARAMETER_REGISTRY.get(method)
         imported = 0
         skipped = 0
         errors: list[CSVImportError] = []
@@ -66,12 +88,31 @@ class ImportExportService:
                     failed = row.get("failed", "false").lower() == "true"
                     comments = row.get("comments")
                     known = {"date", "score", "failed", "comments", "method"}
+                    aliases = LEGACY_IMPORT_ALIASES.get(method, {})
+                    extra_keys = LEGACY_EXTRA_DATA_KEYS.get(method, set())
                     params: dict[str, object] = {}
+                    extra_data: dict[str, object] = {}
 
-                    for key, value in row.items():
-                        if key in known or value in (None, ""):
+                    for raw_key, raw_value in row.items():
+                        if raw_key in known or raw_value in (None, ""):
                             continue
-                        params[key] = self._parse_param_value(value)
+
+                        parsed_value = self._parse_param_value(raw_value)
+                        key = aliases.get(raw_key, raw_key)
+
+                        if schema is not None and key in schema:
+                            params[key] = self._normalise_legacy_param(method, key, parsed_value)
+                            continue
+
+                        if raw_key in extra_keys or self._is_legacy_reviewer_column(raw_key):
+                            extra_data[raw_key] = parsed_value
+                            continue
+
+                        raise ValidationError(
+                            "Unknown parameter keys",
+                            code="unknown_parameter_keys",
+                            fields={raw_key: "unknown parameter"},
+                        )
 
                     validate_method_parameters(method, params)
 
@@ -85,7 +126,7 @@ class ImportExportService:
                         user_id=user_id,
                         method=method,
                         parameters=params,
-                        extra_data=None,
+                        extra_data=extra_data or None,
                         brewed_at=brewed_at,
                         score=score,
                         failed=failed,
