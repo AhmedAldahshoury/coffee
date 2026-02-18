@@ -8,7 +8,12 @@ from coffee_backend.api.deps import get_current_user
 from coffee_backend.core.exceptions import ValidationError
 from coffee_backend.db.models.user import User
 from coffee_backend.db.session import get_db
-from coffee_backend.schemas.optimisation import ApplySuggestionRequest, OptimisationInsight, StudyRequest, SuggestionRead
+from coffee_backend.schemas.optimisation import (
+    ApplySuggestionRequest,
+    OptimisationInsight,
+    StudyRequest,
+    SuggestionRead,
+)
 from coffee_backend.services.optimisation_service import OptimisationService
 
 router = APIRouter(prefix="/optimisation", tags=["optimisation"])

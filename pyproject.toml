@@ -15,6 +15,7 @@ dependencies = [
   "sqlalchemy>=2.0.32",
   "alembic>=1.13.2",
   "pydantic>=2.8.2",
+  "email-validator>=2.2.0",
   "pydantic-settings>=2.4.0",
   "python-jose[cryptography]>=3.3.0",
   "argon2-cffi>=23.1.0",
@@ -33,6 +34,7 @@ dev = [
   "mypy>=1.11.1",
   "ruff>=0.6.1",
   "black>=24.8.0",
+  "isort>=5.13.2",
   "pre-commit>=3.8.0",
 ]
 
@@ -50,10 +52,18 @@ target-version = ["py310"]
 line-length = 100
 target-version = "py310"
 src = ["src", "tests"]
+extend-exclude = ["legacy"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "N", "C4", "SIM", "RUF"]
 ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/coffee_backend/db/migrations/env.py" = ["E402"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
 
 [tool.mypy]
 python_version = "3.10"

@@ -85,10 +85,15 @@ coffee export csv --user-id <uuid> --out ./exports
 
 ## Quality checks
 ```bash
-ruff check .
-black --check .
-mypy src
-pytest
+make lint
+make format
+make test
+```
+
+### Pre-commit
+```bash
+pre-commit install
+pre-commit run --all-files
 ```
 
 ## Troubleshooting

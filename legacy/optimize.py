@@ -1,45 +1,58 @@
+import argparse
 import logging
 
-import argparse
 import optuna
-
 from constants import SEED
-from utils import get_formatted_parameter, parse_experiments, visualize, \
-    get_objective, get_distributions, add_historical_trials, get_data_from_path
+from utils import (
+    add_historical_trials,
+    get_data_from_path,
+    get_distributions,
+    get_formatted_parameter,
+    get_objective,
+    parse_experiments,
+    visualize,
+)
 
 logging.getLogger("optuna").setLevel(logging.WARNING)
 
 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
+)
 parser.add_argument("input", help="Input prefix for files PREFIX.data.csv and PREFIX.meta.csv.")
-parser.add_argument("--best", "-b", help="Return only the historical best trial.",
-                    action="store_true")
-parser.add_argument("--persons", "-p", help="Consider only scores of a set of persons.",
-                    nargs='+')
-parser.add_argument("--method", "-m", help="Scoring method.",
-                    default='median', choices=('mean', 'median', 'lowest', 'highest'))
-parser.add_argument("--weight", "-w", help="Weight of the prior in optimization.",
-                    type=float, default=0.666)
-parser.add_argument("--time", "-t", help="Show optimization history.",
-                    action="store_true")
-parser.add_argument("--relations", "-r", help="Show paramerter relations.",
-                    action="store_true")
-parser.add_argument("--edf", "-e", help="Show empirical distribution function.",
-                    action="store_true")
-parser.add_argument("--importance", "-i", help="Show parameter importance.",
-                    action="store_true")
-parser.add_argument("--slice", "-s", help="Show how parameters influence the objective.",
-                    action="store_true")
-parser.add_argument("--scores", "-S", help="Show distribution of scores per person.",
-                    action="store_true")
+parser.add_argument(
+    "--best", "-b", help="Return only the historical best trial.", action="store_true"
+)
+parser.add_argument("--persons", "-p", help="Consider only scores of a set of persons.", nargs="+")
+parser.add_argument(
+    "--method",
+    "-m",
+    help="Scoring method.",
+    default="median",
+    choices=("mean", "median", "lowest", "highest"),
+)
+parser.add_argument(
+    "--weight", "-w", help="Weight of the prior in optimization.", type=float, default=0.666
+)
+parser.add_argument("--time", "-t", help="Show optimization history.", action="store_true")
+parser.add_argument("--relations", "-r", help="Show paramerter relations.", action="store_true")
+parser.add_argument(
+    "--edf", "-e", help="Show empirical distribution function.", action="store_true"
+)
+parser.add_argument("--importance", "-i", help="Show parameter importance.", action="store_true")
+parser.add_argument(
+    "--slice", "-s", help="Show how parameters influence the objective.", action="store_true"
+)
+parser.add_argument(
+    "--scores", "-S", help="Show distribution of scores per person.", action="store_true"
+)
 args = parser.parse_args()
 
 
 experiments_df, metadata_df = get_data_from_path(args.input)
 historical_experiments_df, fixed_parameters, unique_category_dict = parse_experiments(
-    experiments_df, metadata_df, args.persons, args.method)
+    experiments_df, metadata_df, args.persons, args.method
+)
 distributions = get_distributions(metadata_df, unique_category_dict)
 
 sampler = optuna.samplers.TPESampler(
@@ -47,11 +60,7 @@ sampler = optuna.samplers.TPESampler(
     seed=SEED,
     prior_weight=args.weight,
 )
-study = optuna.create_study(
-    sampler=sampler,
-    direction="maximize",
-    study_name="Coffee Optimization"
-)
+study = optuna.create_study(sampler=sampler, direction="maximize", study_name="Coffee Optimization")
 add_historical_trials(study, distributions, historical_experiments_df)
 
 visualize(study, experiments_df, metadata_df, args)

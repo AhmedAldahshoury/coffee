@@ -11,7 +11,9 @@ export_app = typer.Typer(help="Export commands")
 
 
 @app.command("csv")
-def import_csv(user_id: UUID, data: str, method: str | None = None, meta: str | None = None) -> None:
+def import_csv(
+    user_id: UUID, data: str, method: str | None = None, meta: str | None = None
+) -> None:
     with SessionLocal() as db:
         result = ImportExportService(db).import_csv(
             user_id, CSVImportRequest(method=method, data_path=data, meta_path=meta)

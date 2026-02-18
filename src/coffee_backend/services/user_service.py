@@ -11,7 +11,9 @@ class UserService:
         self.db = db
 
     def create_user(self, payload: UserCreate) -> User:
-        user = User(email=payload.email, hashed_password=hash_password(payload.password), name=payload.name)
+        user = User(
+            email=payload.email, hashed_password=hash_password(payload.password), name=payload.name
+        )
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)

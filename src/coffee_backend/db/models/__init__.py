@@ -5,4 +5,4 @@ from coffee_backend.db.models.optuna_study import Suggestion
 from coffee_backend.db.models.recipe import Recipe
 from coffee_backend.db.models.user import User
 
-__all__ = ["User", "Bean", "Equipment", "Recipe", "Brew", "Suggestion"]
+__all__ = ["Bean", "Brew", "Equipment", "Recipe", "Suggestion", "User"]

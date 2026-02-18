@@ -1,5 +1,3 @@
-from collections import defaultdict
-from datetime import date
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -14,7 +12,9 @@ class AnalyticsService:
 
     def best_per_method(self, user_id: UUID) -> dict[str, dict[str, float | str]]:
         rows = self.db.execute(
-            select(Brew.method, func.max(Brew.score)).where(Brew.user_id == user_id).group_by(Brew.method)
+            select(Brew.method, func.max(Brew.score))
+            .where(Brew.user_id == user_id)
+            .group_by(Brew.method)
         ).all()
         return {method: {"best_score": score} for method, score in rows if score is not None}
 

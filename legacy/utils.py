@@ -1,18 +1,15 @@
-import math
 import os
 from glob import glob
-import matplotlib.pyplot as plt
-from time import strftime, gmtime
+from time import gmtime, strftime
 
-import optuna
+import matplotlib.pyplot as plt
 import numpy as np
+import optuna
 import pandas as pd
 import seaborn as sns
-from scipy.stats import skew, kurtosis
-from optuna.distributions import CategoricalDistribution, IntDistribution, FloatDistribution
-
-from constants import NO_OPTIMIZE_COLUMNS, OBJECTIVE_COLUMN, FAILED_COLUMN, FAILED_SCORE
-
+from constants import FAILED_COLUMN, FAILED_SCORE, NO_OPTIMIZE_COLUMNS, OBJECTIVE_COLUMN
+from optuna.distributions import CategoricalDistribution, FloatDistribution, IntDistribution
+from scipy.stats import kurtosis, skew
 
 KDE_SIGMA = 0.5
 MIN_SCORE = 0
@@ -29,7 +26,10 @@ def sanitize_params(params, distributions):
         if param_value < distribution.low or param_value > distribution.high:
             param_value = min(max(param_value, distribution.low), distribution.high)
 
-        param_value = round((param_value - distribution.low) / distribution.step) * distribution.step + distribution.low
+        param_value = (
+            round((param_value - distribution.low) / distribution.step) * distribution.step
+            + distribution.low
+        )
         if isinstance(distribution, IntDistribution):
             param_value = int(param_value)
 
@@ -38,34 +38,34 @@ def sanitize_params(params, distributions):
 
 
 def get_distributions(metadata_df, unique_category_dict):
-    all_parameter_rows = metadata_df['type'] == 'parameter'
+    all_parameter_rows = metadata_df["type"] == "parameter"
     parameter_metadata_df = metadata_df[all_parameter_rows]
 
     distributions = {}
     for index, row in parameter_metadata_df.iterrows():
-        name = row['name']
-        type_ = row['parameter type']
-        low = row['low']
-        high = row['high']
-        step = row['step']
+        name = row["name"]
+        type_ = row["parameter type"]
+        low = row["low"]
+        high = row["high"]
+        step = row["step"]
 
-        if type_ == 'category':
+        if type_ == "category":
             unique_categories = unique_category_dict[name]
             distributions[name] = CategoricalDistribution(choices=unique_categories)
-        elif type_ == 'int':
+        elif type_ == "int":
             distributions[name] = IntDistribution(low=low, high=high, step=step)
-        elif type_ == 'float':
+        elif type_ == "float":
             distributions[name] = FloatDistribution(low=low, high=high, step=step)
     return distributions
 
 
 def get_formatted_parameter(parameter, value, metadata_df, fixed=False):
     fixed_string = "[FIXED]" if fixed else "       "
-    parameter_metadata_rows = metadata_df['name'] == parameter
+    parameter_metadata_rows = metadata_df["name"] == parameter
     parameter_metadata = metadata_df[parameter_metadata_rows]
-    unit = parameter_metadata['unit'].values[0]
+    unit = parameter_metadata["unit"].values[0]
 
-    if unit == 'seconds':
+    if unit == "seconds":
         formatted_time = strftime("%M:%S", gmtime(value))
         value = f"{formatted_time} [{value}]"
 
@@ -73,15 +73,15 @@ def get_formatted_parameter(parameter, value, metadata_df, fixed=False):
 
 
 def get_score_colums(metadata_df):
-    all_score_rows = metadata_df['type'] == 'score'
-    all_score_names = metadata_df[all_score_rows]['name']
+    all_score_rows = metadata_df["type"] == "score"
+    all_score_names = metadata_df[all_score_rows]["name"]
     all_score_columns = all_score_names.values
     return all_score_columns
 
 
 def get_parameter_columns(metadata_df):
-    all_parameter_rows = metadata_df['type'] == 'parameter'
-    all_parameter_names = metadata_df[all_parameter_rows]['name']
+    all_parameter_rows = metadata_df["type"] == "parameter"
+    all_parameter_names = metadata_df[all_parameter_rows]["name"]
     all_parameter_columns = all_parameter_names.values
     return all_parameter_columns
 
@@ -89,7 +89,7 @@ def get_parameter_columns(metadata_df):
 def filter_score_columns(all_score_columns, persons):
     if persons:
         score_columns = [col for col in all_score_columns if any(name in col for name in persons)]
-        persons_string = ', '.join(persons)
+        persons_string = ", ".join(persons)
         print(f"Only considering results for persons: {persons_string}")
         return score_columns
     else:
@@ -127,7 +127,9 @@ def parse_experiments(experiments_df, metadata_df, persons, method):
 
     scores = get_scores(historical_experiments_df, person_score_columns, method)
     historical_experiments_df[OBJECTIVE_COLUMN] = scores
-    historical_experiments_df.drop(columns=all_score_columns, inplace=True)  # score can be missing for single persons
+    historical_experiments_df.drop(
+        columns=all_score_columns, inplace=True
+    )  # score can be missing for single persons
 
     failed_locations = historical_experiments_df[FAILED_COLUMN]
     historical_experiments_df.loc[failed_locations, OBJECTIVE_COLUMN] = FAILED_SCORE
@@ -149,9 +151,11 @@ def parse_experiments(experiments_df, metadata_df, persons, method):
 
 
 def get_unique_categories(historical_experiments_df, metadata_df):
-    categorical_parameter_rows = (metadata_df['type'] == 'parameter') & (metadata_df['parameter type'] == 'category')
+    categorical_parameter_rows = (metadata_df["type"] == "parameter") & (
+        metadata_df["parameter type"] == "category"
+    )
     categorical_parameter_df = metadata_df[categorical_parameter_rows]
-    categorical_parameter_rows = categorical_parameter_df['name']
+    categorical_parameter_rows = categorical_parameter_df["name"]
     categorical_parameter_names = categorical_parameter_rows.values
 
     unique_category_dict = {}
@@ -163,13 +167,13 @@ def get_unique_categories(historical_experiments_df, metadata_df):
 
 def get_scores(historical_experiments_df, person_score_columns, method):
     # historical_experiments_df[person_score_columns] = historical_experiments_df[person_score_columns].notna()  # make failed true/false
-    if method == 'mean':
+    if method == "mean":
         scores = historical_experiments_df[person_score_columns].mean(axis=1)
-    elif method == 'median':
+    elif method == "median":
         scores = historical_experiments_df[person_score_columns].median(axis=1)
-    elif method == 'lowest':
+    elif method == "lowest":
         scores = historical_experiments_df[person_score_columns].min(axis=1)
-    elif method == 'highest':
+    elif method == "highest":
         scores = historical_experiments_df[person_score_columns].max(axis=1)
     return scores
 
@@ -179,35 +183,35 @@ def visualize(study, experiments_df, metadata_df, args):
     if not study.trials or not do_visualization:
         return
 
-    png_files = glob('visualizations/*.png')
+    png_files = glob("visualizations/*.png")
     for file_path in png_files:
         os.remove(file_path)
 
     if args.time:
         optuna.visualization.matplotlib.plot_optimization_history(study)
         plt.tight_layout()
-        plt.savefig('visualizations/time.png')
+        plt.savefig("visualizations/time.png")
     if args.relations:
         importances = optuna.importance.get_param_importances(study)
         params_sorted = list(importances.keys())
         optuna.visualization.matplotlib.plot_contour(study, params=params_sorted)
-        plt.savefig('visualizations/relations.png')
+        plt.savefig("visualizations/relations.png")
     if args.edf:
         optuna.visualization.matplotlib.plot_edf(study)
-        plt.savefig('visualizations/EDF.png')
+        plt.savefig("visualizations/EDF.png")
     if args.importance:
         optuna.visualization.matplotlib.plot_param_importances(study)
         plt.tight_layout()
-        plt.savefig('visualizations/importance.png')
+        plt.savefig("visualizations/importance.png")
     if args.slice:
         optuna.visualization.matplotlib.plot_slice(study)
-        plt.savefig('visualizations/slice.png')
+        plt.savefig("visualizations/slice.png")
     if args.scores:
         all_score_columns = get_score_colums(metadata_df)
         person_score_columns = filter_score_columns(all_score_columns, args.persons)
         scores_df = experiments_df[person_score_columns]
         visualize_scores(scores_df)
-        plt.savefig('visualizations/scores.png')
+        plt.savefig("visualizations/scores.png")
 
     plt.show()
 
@@ -228,11 +232,14 @@ def visualize_scores(scores_df):
 
         sns.kdeplot(
             cleaned_column,
-            label=f"{column}", fill=True, color=color, bw_adjust=KDE_SIGMA,
-            )
+            label=f"{column}",
+            fill=True,
+            color=color,
+            bw_adjust=KDE_SIGMA,
+        )
         plt.scatter(
-            cleaned_column, np.zeros_like(cleaned_column),
-            color=color, s=20, zorder=3, alpha=0.1)
+            cleaned_column, np.zeros_like(cleaned_column), color=color, s=20, zorder=3, alpha=0.1
+        )
 
     y_min, y_max = plt.gca().get_ylim()  # have to get y_lims for placing text
 
@@ -246,18 +253,23 @@ def visualize_scores(scores_df):
         kurt = kurtosis(cleaned_column, bias=False)
 
         # Line and text at mean
-        plt.axvline(mean, color=color, linestyle='--')
-        y_pos = y_max - (y_max - y_min) * (1/len(scores_df.columns)) * idx
+        plt.axvline(mean, color=color, linestyle="--")
+        y_pos = y_max - (y_max - y_min) * (1 / len(scores_df.columns)) * idx
         plt.text(
-            mean + 0.1, y_pos,
-            f'{column}\nMean: {mean:.2f}\nVar: {variance:.2f}\nSkew: {skewness:.2f}\nKurtosis: {kurt:.2f}',
-            horizontalalignment='left', verticalalignment='top', size='small', color=color)
+            mean + 0.1,
+            y_pos,
+            f"{column}\nMean: {mean:.2f}\nVar: {variance:.2f}\nSkew: {skewness:.2f}\nKurtosis: {kurt:.2f}",
+            horizontalalignment="left",
+            verticalalignment="top",
+            size="small",
+            color=color,
+        )
 
     plt.xlim(MIN_SCORE, MAX_SCORE)
     plt.legend()
-    plt.title('Kernel Density Estimate of Scores')
-    plt.xlabel('Score')
-    plt.ylabel('Density')
+    plt.title("Kernel Density Estimate of Scores")
+    plt.xlabel("Score")
+    plt.ylabel("Density")
 
 
 def get_objective(distributions, fixed_parameters):
@@ -268,14 +280,15 @@ def get_objective(distributions, fixed_parameters):
                 continue
 
             if isinstance(distribution, optuna.distributions.CategoricalDistribution):
-                trial.suggest_categorical(
-                    param_name, distribution.choices)
+                trial.suggest_categorical(param_name, distribution.choices)
             elif isinstance(distribution, optuna.distributions.IntDistribution):
                 trial.suggest_int(
-                    param_name, distribution.low, distribution.high, step=distribution.step)
+                    param_name, distribution.low, distribution.high, step=distribution.step
+                )
             elif isinstance(distribution, optuna.distributions.FloatDistribution):
                 trial.suggest_float(
-                    param_name, distribution.low, distribution.high, step=distribution.step)
+                    param_name, distribution.low, distribution.high, step=distribution.step
+                )
 
         return 0  # dummy objective value
 

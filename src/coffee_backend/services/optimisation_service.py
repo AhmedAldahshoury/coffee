@@ -72,7 +72,9 @@ class OptimisationService:
         self.db.refresh(suggestion)
         return suggestion
 
-    def apply(self, user_id: UUID, suggestion_id: UUID, brew_id: UUID, score: float | None, failed: bool) -> Suggestion:
+    def apply(
+        self, user_id: UUID, suggestion_id: UUID, brew_id: UUID, score: float | None, failed: bool
+    ) -> Suggestion:
         suggestion = self.db.scalar(
             select(Suggestion).where(Suggestion.id == suggestion_id, Suggestion.user_id == user_id)
         )
@@ -82,7 +84,11 @@ class OptimisationService:
         if brew is None:
             raise ValidationError("Brew not found")
         study = optuna.load_study(study_name=suggestion.study_key, storage=self.storage)
-        value = self.settings.failed_brew_score if failed else (score if score is not None else brew.score)
+        value = (
+            self.settings.failed_brew_score
+            if failed
+            else (score if score is not None else brew.score)
+        )
         if value is None:
             raise ValidationError("Score is required when applying suggestion")
         study.tell(suggestion.trial_number, float(value))

@@ -11,7 +11,9 @@ from coffee_backend.db.models.common import TimestampMixin, UUIDMixin
 class Bean(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "beans"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str] = mapped_column(String(255))
     roaster: Mapped[str | None] = mapped_column(String(255), nullable=True)
     origin: Mapped[str | None] = mapped_column(String(255), nullable=True)
