@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -10,9 +11,18 @@ from sqlalchemy.orm import Session
 from coffee_backend.core.config import get_settings
 from coffee_backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from coffee_backend.db.models.brew import Brew
-from coffee_backend.db.models.optuna_study import Suggestion
+from coffee_backend.db.models.method_profile import MethodProfile
+from coffee_backend.db.models.optuna_study import StudyContext, Suggestion
 from coffee_backend.schemas.optimisation import OptimisationInsight, StudyRequest
-from coffee_backend.schemas.parameter_registry import METHOD_PARAMETER_REGISTRY
+
+
+@dataclass(frozen=True)
+class CanonicalStudyContext:
+    user_id: UUID
+    method_id: str
+    variant_id: str
+    bean_id: UUID | None
+    equipment_id: UUID | None
 
 
 class OptimisationService:
@@ -28,21 +38,70 @@ class OptimisationService:
         )
         self.logger = logging.getLogger(__name__)
 
-    def _normalise_method(self, method: str) -> str:
-        normalised_method = method.strip().lower()
-        if normalised_method not in METHOD_PARAMETER_REGISTRY:
-            raise ValidationError("Unsupported method", code="unsupported_method")
-        return normalised_method
+    def _resolve_variant_id(self, method_id: str, variant_id: str | None) -> str:
+        method = method_id.strip().lower()
+        if variant_id is not None:
+            profile = self.db.scalar(
+                select(MethodProfile)
+                .where(MethodProfile.method_id == method)
+                .where(MethodProfile.variant_id == variant_id)
+                .order_by(MethodProfile.schema_version.desc())
+            )
+            if profile is None:
+                raise ValidationError(
+                    f"Unsupported method variant '{method}/{variant_id}'",
+                    code="unsupported_method_variant",
+                )
+            return variant_id
 
-    def build_study_key(self, user_id: UUID, req: StudyRequest) -> str:
-        method = self._normalise_method(req.method)
-        return (
-            f"u:{user_id}:m:{method}:b:{req.bean_id or 'none'}:"
-            f"e:{req.equipment_id or 'none'}:r:{req.recipe_id or 'none'}"
+        profiles = list(
+            self.db.scalars(
+                select(MethodProfile)
+                .where(MethodProfile.method_id == method)
+                .order_by(MethodProfile.variant_id.asc(), MethodProfile.schema_version.desc())
+            )
+        )
+        if not profiles:
+            raise ValidationError("Unsupported method", code="unsupported_method")
+        default_variant = next((p.variant_id for p in profiles if "default" in p.variant_id), None)
+        return default_variant or profiles[0].variant_id
+
+    def canonicalise_context(self, user_id: UUID, req: StudyRequest) -> CanonicalStudyContext:
+        method_id = req.method_id.strip().lower()
+        variant_id = self._resolve_variant_id(method_id, req.variant_id)
+        return CanonicalStudyContext(
+            user_id=user_id,
+            method_id=method_id,
+            variant_id=variant_id,
+            bean_id=req.bean_id,
+            equipment_id=req.equipment_id,
         )
 
-    def ensure_study(self, user_id: UUID, req: StudyRequest) -> str:
-        study_key = self.build_study_key(user_id, req)
+    def build_study_key(self, context: CanonicalStudyContext) -> str:
+        return (
+            f"u:{context.user_id}|m:{context.method_id}|v:{context.variant_id}|"
+            f"b:{context.bean_id or 'none'}|e:{context.equipment_id or 'none'}"
+        )
+
+    def ensure_study_context(self, user_id: UUID, req: StudyRequest) -> StudyContext:
+        context = self.canonicalise_context(user_id, req)
+        study_key = self.build_study_key(context)
+        study_context = self.db.scalar(
+            select(StudyContext).where(StudyContext.study_key == study_key)
+        )
+        if study_context is None:
+            study_context = StudyContext(
+                user_id=context.user_id,
+                method_id=context.method_id,
+                variant_id=context.variant_id,
+                bean_id=context.bean_id,
+                equipment_id=context.equipment_id,
+                study_key=study_key,
+            )
+            self.db.add(study_context)
+            self.db.commit()
+            self.db.refresh(study_context)
+
         sampler = optuna.samplers.TPESampler(seed=42, n_startup_trials=5)
         optuna.create_study(
             study_name=study_key,
@@ -52,14 +111,22 @@ class OptimisationService:
             sampler=sampler,
         )
         self.logger.info("optimisation.study.ensured", extra={"study_key": study_key})
-        return study_key
+        return study_context
 
-    def _ask_params(self, trial: optuna.Trial, method: str) -> dict[str, object]:
-        schema = METHOD_PARAMETER_REGISTRY.get(method)
-        if schema is None:
-            raise ValidationError("Unsupported method")
+    def _ask_params(
+        self, trial: optuna.Trial, method_id: str, variant_id: str
+    ) -> dict[str, object]:
+        profile = self.db.scalar(
+            select(MethodProfile)
+            .where(MethodProfile.method_id == method_id)
+            .where(MethodProfile.variant_id == variant_id)
+            .order_by(MethodProfile.schema_version.desc())
+        )
+        if profile is None:
+            raise ValidationError("Unsupported method", code="unsupported_method")
         params: dict[str, object] = {}
-        for name, spec in schema.items():
+        for spec in profile.parameters:
+            name = str(spec["name"])
             if spec["type"] == "int":
                 params[name] = trial.suggest_int(name, spec["min"], spec["max"])
             elif spec["type"] == "float":
@@ -69,13 +136,14 @@ class OptimisationService:
         return params
 
     def suggest(self, user_id: UUID, req: StudyRequest) -> Suggestion:
-        req = req.model_copy(update={"method": self._normalise_method(req.method)})
-        study_key = self.ensure_study(user_id, req)
+        study_context = self.ensure_study_context(user_id, req)
+        study_key = study_context.study_key
         study = optuna.load_study(study_name=study_key, storage=self.storage)
         trial = study.ask()
-        params = self._ask_params(trial, req.method)
+        params = self._ask_params(trial, study_context.method_id, study_context.variant_id)
         suggestion = Suggestion(
             user_id=user_id,
+            study_context_id=study_context.id,
             study_key=study_key,
             trial_number=trial.number,
             suggested_parameters=params,
@@ -123,6 +191,18 @@ class OptimisationService:
         brew = self.db.scalar(select(Brew).where(Brew.id == brew_id, Brew.user_id == user_id))
         if brew is None:
             raise NotFoundError("Brew not found", code="brew_not_found")
+
+        if (
+            brew.method != suggestion.study_context.method_id
+            or brew.variant_id != suggestion.study_context.variant_id
+            or brew.bean_id != suggestion.study_context.bean_id
+            or brew.equipment_id != suggestion.study_context.equipment_id
+        ):
+            raise ValidationError(
+                "Suggestion context does not match brew context",
+                code="suggestion_context_mismatch",
+            )
+
         try:
             study = optuna.load_study(study_name=suggestion.study_key, storage=self.storage)
         except KeyError as exc:

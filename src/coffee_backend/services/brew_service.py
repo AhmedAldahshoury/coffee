@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from coffee_backend.core.exceptions import NotFoundError
 from coffee_backend.db.models.brew import Brew
+from coffee_backend.db.models.method_profile import MethodProfile
 from coffee_backend.schemas.brew import BrewCreate
 from coffee_backend.services.parameter_validation import validate_method_parameters
 
@@ -13,11 +14,30 @@ class BrewService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _resolve_variant_id(self, method_id: str, variant_id: str | None) -> str:
+        if variant_id is not None:
+            return variant_id
+
+        profiles = list(
+            self.db.scalars(
+                select(MethodProfile)
+                .where(MethodProfile.method_id == method_id)
+                .order_by(MethodProfile.variant_id.asc(), MethodProfile.schema_version.desc())
+            )
+        )
+        if not profiles:
+            return f"{method_id}_default"
+
+        default_variant = next((p.variant_id for p in profiles if "default" in p.variant_id), None)
+        return default_variant or profiles[0].variant_id
+
     def create_brew(
         self, user_id: str, payload: BrewCreate, import_hash: str | None = None
     ) -> Brew:
         validate_method_parameters(payload.method, payload.parameters)
-        brew = Brew(user_id=user_id, **payload.model_dump(), import_hash=import_hash)
+        brew_payload = payload.model_dump()
+        brew_payload["variant_id"] = self._resolve_variant_id(payload.method, payload.variant_id)
+        brew = Brew(user_id=user_id, **brew_payload, import_hash=import_hash)
         self.db.add(brew)
         self.db.commit()
         self.db.refresh(brew)

@@ -11,6 +11,7 @@ from coffee_backend.db.session import get_db
 from coffee_backend.schemas.optimisation import (
     ApplySuggestionRequest,
     OptimisationInsight,
+    StudyContextRead,
     StudyRequest,
     SuggestionRead,
 )
@@ -20,19 +21,25 @@ router = APIRouter(prefix="/optimisation", tags=["optimisation"])
 logger = logging.getLogger(__name__)
 
 
-@router.post("/studies")
+@router.post("/studies", response_model=StudyContextRead)
 def create_study(
     payload: StudyRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
-) -> dict[str, str]:
+) -> StudyContextRead:
     service = OptimisationService(db)
-    study_key = service.ensure_study(user.id, payload)
+    study_context = service.ensure_study_context(user.id, payload)
     logger.info(
         "optimisation.study.requested",
-        extra={"user_id": str(user.id), "study_key": study_key},
+        extra={"user_id": str(user.id), "study_key": study_context.study_key},
     )
-    return {"study_key": study_key}
+    return StudyContextRead(
+        study_key=study_context.study_key,
+        method_id=study_context.method_id,
+        variant_id=study_context.variant_id,
+        bean_id=study_context.bean_id,
+        equipment_id=study_context.equipment_id,
+    )
 
 
 @router.post("/suggest", response_model=SuggestionRead)
@@ -43,7 +50,7 @@ def suggest(
 ):
     logger.info(
         "optimisation.suggest.requested",
-        extra={"user_id": str(user.id), "method": payload.method},
+        extra={"user_id": str(user.id), "method_id": payload.method_id},
     )
     return OptimisationService(db).suggest(user.id, payload)
 

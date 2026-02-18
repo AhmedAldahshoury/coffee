@@ -11,6 +11,7 @@ class BrewCreate(BaseModel):
     recipe_id: UUID | None = None
     equipment_id: UUID | None = None
     method: str
+    variant_id: str | None = None
     parameters: dict[str, object] = Field(default_factory=dict)
     brewed_at: datetime
     score: float | None = None
