@@ -195,15 +195,10 @@ def upgrade() -> None:
     op.create_table(
         "method_profiles",
         sa.Column("method_id", sa.String(length=50), nullable=False),
-        sa.Column("variant_id", sa.String(length=100), nullable=True),
+        sa.Column("variant_id", sa.String(length=100), nullable=False),
         sa.Column("schema_version", sa.Integer(), nullable=False),
         sa.Column("parameters", sa.JSON(), nullable=False),
-        sa.UniqueConstraint(
-            "method_id",
-            "variant_id",
-            "schema_version",
-            name="uq_method_profiles_method_variant_version",
-        ),
+        sa.PrimaryKeyConstraint("method_id", "variant_id", "schema_version"),
     )
     op.create_index(
         op.f("ix_method_profiles_method_id"),
