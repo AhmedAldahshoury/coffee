@@ -128,13 +128,12 @@ class OptimisationService:
         except KeyError as exc:
             raise NotFoundError("Study not found", code="study_not_found") from exc
 
-        try:
-            study.get_trial(suggestion.trial_number)
-        except KeyError as exc:
+        known_trial_numbers = {trial.number for trial in study.get_trials(deepcopy=False)}
+        if suggestion.trial_number not in known_trial_numbers:
             raise NotFoundError(
                 "Suggestion trial not found",
                 code="suggestion_trial_not_found",
-            ) from exc
+            )
 
         candidate_value = (
             self.settings.failed_brew_score

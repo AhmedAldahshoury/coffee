@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-import optuna
 from fastapi.testclient import TestClient
 
 from coffee_backend.core.config import Settings
@@ -107,12 +106,7 @@ def test_optimisation_study_persists_across_app_sessions(test_settings: Settings
 
     assert second_payload["study_key"] == first_payload["study_key"]
 
-    storage = optuna.storages.RDBStorage(
-        url=test_settings.database_url,
-        skip_compatibility_check=test_settings.optuna_skip_compatibility_check,
-    )
-    study = optuna.load_study(study_name=first_payload["study_key"], storage=storage)
-    assert len(study.get_trials(deepcopy=False)) >= 2
+    assert second_payload["trial_number"] > first_payload["trial_number"]
 
 
 def test_optimisation_invalid_apply_returns_clear_error_code(client: TestClient):
