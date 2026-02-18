@@ -73,10 +73,11 @@ coffee export csv --user-id <uuid> --out ./exports
 ```
 
 ## Optimisation lifecycle
-1. Create/ensure study scope (`user + method + optional bean/equipment/recipe`).
-2. Request suggestion (`study.ask` + parameter registry distributions).
-3. Brew with suggested params and record score.
-4. Apply suggestion to tell Optuna trial result (`study.tell`).
+1. Create/ensure a deterministic study scope key: `u:{user_id}:m:{method_lower}:b:{bean|none}:e:{equipment|none}:r:{recipe|none}`.
+2. Request suggestion via ask flow (`study.ask` + parameter registry distributions) and persist identifiers (`id`, `study_key`, `trial_number`, suggested params).
+3. Brew with suggested params and record a score.
+4. Apply suggestion via tell flow (`study.tell`) with score validation (`0.0..10.0`) and trial/study existence checks.
+5. Apply is explicitly non-idempotent: a suggestion can be applied once and subsequent applies return `suggestion_already_applied`.
 
 ## Legacy CSV import notes
 - Existing files in repo (e.g. `aeropress.data.csv`) can be imported via API or CLI.
