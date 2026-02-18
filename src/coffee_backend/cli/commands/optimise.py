@@ -2,7 +2,7 @@ from uuid import UUID
 
 import typer
 
-from coffee_backend.db.session import SessionLocal
+from coffee_backend.cli.db import get_cli_db_session
 from coffee_backend.schemas.optimisation import StudyRequest
 from coffee_backend.services.optimisation_service import OptimisationService
 
@@ -20,7 +20,7 @@ def suggest(
     req = StudyRequest(
         method=method, bean_id=bean_id, equipment_id=equipment_id, recipe_id=recipe_id
     )
-    with SessionLocal() as db:
+    with get_cli_db_session() as db:
         s = OptimisationService(db).suggest(user_id, req)
         typer.echo(f"{s.id} {s.suggested_parameters}")
 
@@ -33,6 +33,6 @@ def apply(
     score: float | None = None,
     failed: bool = False,
 ) -> None:
-    with SessionLocal() as db:
+    with get_cli_db_session() as db:
         s = OptimisationService(db).apply(user_id, suggestion_id, brew_id, score, failed)
         typer.echo(f"Applied suggestion {s.id}")

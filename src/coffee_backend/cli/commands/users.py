@@ -1,6 +1,6 @@
 import typer
 
-from coffee_backend.db.session import SessionLocal
+from coffee_backend.cli.db import get_cli_db_session
 from coffee_backend.schemas.user import UserCreate
 from coffee_backend.services.user_service import UserService
 
@@ -13,7 +13,7 @@ def create_user(
     password: str = typer.Option(..., "--password", help="User password"),
     name: str = typer.Option("", "--name", help="Optional display name"),
 ) -> None:
-    with SessionLocal() as db:
+    with get_cli_db_session() as db:
         user = UserService(db).create_user(
             UserCreate(email=email, password=password, name=name or None)
         )
@@ -22,6 +22,6 @@ def create_user(
 
 @app.command("list")
 def list_users() -> None:
-    with SessionLocal() as db:
+    with get_cli_db_session() as db:
         for user in UserService(db).list_users():
             typer.echo(f"{user.id} {user.email} {user.name or ''}")
