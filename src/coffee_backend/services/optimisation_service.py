@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 from uuid import UUID
 
 import optuna
@@ -7,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from coffee_backend.core.config import get_settings
-from coffee_backend.core.exceptions import NotFoundError, ValidationError
+from coffee_backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from coffee_backend.db.models.brew import Brew
 from coffee_backend.db.models.optuna_study import Suggestion
 from coffee_backend.schemas.optimisation import OptimisationInsight, StudyRequest
@@ -15,6 +16,9 @@ from coffee_backend.schemas.parameter_registry import METHOD_PARAMETER_REGISTRY
 
 
 class OptimisationService:
+    MIN_SCORE = 0.0
+    MAX_SCORE = 10.0
+
     def __init__(self, db: Session):
         self.db = db
         self.settings = get_settings()
@@ -22,10 +26,18 @@ class OptimisationService:
             url=self.settings.database_url,
             skip_compatibility_check=self.settings.optuna_skip_compatibility_check,
         )
+        self.logger = logging.getLogger(__name__)
+
+    def _normalise_method(self, method: str) -> str:
+        normalised_method = method.strip().lower()
+        if normalised_method not in METHOD_PARAMETER_REGISTRY:
+            raise ValidationError("Unsupported method", code="unsupported_method")
+        return normalised_method
 
     def build_study_key(self, user_id: UUID, req: StudyRequest) -> str:
+        method = self._normalise_method(req.method)
         return (
-            f"u:{user_id}:m:{req.method}:b:{req.bean_id or 'none'}:"
+            f"u:{user_id}:m:{method}:b:{req.bean_id or 'none'}:"
             f"e:{req.equipment_id or 'none'}:r:{req.recipe_id or 'none'}"
         )
 
@@ -39,6 +51,7 @@ class OptimisationService:
             load_if_exists=True,
             sampler=sampler,
         )
+        self.logger.info("optimisation.study.ensured", extra={"study_key": study_key})
         return study_key
 
     def _ask_params(self, trial: optuna.Trial, method: str) -> dict[str, object]:
@@ -56,6 +69,7 @@ class OptimisationService:
         return params
 
     def suggest(self, user_id: UUID, req: StudyRequest) -> Suggestion:
+        req = req.model_copy(update={"method": self._normalise_method(req.method)})
         study_key = self.ensure_study(user_id, req)
         study = optuna.load_study(study_name=study_key, storage=self.storage)
         trial = study.ask()
@@ -70,7 +84,28 @@ class OptimisationService:
         self.db.add(suggestion)
         self.db.commit()
         self.db.refresh(suggestion)
+        self.logger.info(
+            "optimisation.suggestion.issued",
+            extra={
+                "study_key": study_key,
+                "trial_number": trial.number,
+                "suggestion_id": str(suggestion.id),
+            },
+        )
         return suggestion
+
+    def _validate_score(self, score: float | None) -> float:
+        if score is None:
+            raise ValidationError(
+                "Score is required when applying suggestion",
+                code="suggestion_score_required",
+            )
+        if not (self.MIN_SCORE <= float(score) <= self.MAX_SCORE):
+            raise ValidationError(
+                f"Score must be between {self.MIN_SCORE} and {self.MAX_SCORE}",
+                code="suggestion_score_out_of_range",
+            )
+        return float(score)
 
     def apply(
         self, user_id: UUID, suggestion_id: UUID, brew_id: UUID, score: float | None, failed: bool
@@ -80,24 +115,48 @@ class OptimisationService:
         )
         if suggestion is None:
             raise NotFoundError("Suggestion not found", code="suggestion_not_found")
+        if suggestion.status == "applied":
+            raise ConflictError(
+                "Suggestion was already applied and cannot be applied again",
+                code="suggestion_already_applied",
+            )
         brew = self.db.scalar(select(Brew).where(Brew.id == brew_id, Brew.user_id == user_id))
         if brew is None:
             raise NotFoundError("Brew not found", code="brew_not_found")
-        study = optuna.load_study(study_name=suggestion.study_key, storage=self.storage)
-        value = (
+        try:
+            study = optuna.load_study(study_name=suggestion.study_key, storage=self.storage)
+        except KeyError as exc:
+            raise NotFoundError("Study not found", code="study_not_found") from exc
+
+        try:
+            study.get_trial(suggestion.trial_number)
+        except KeyError as exc:
+            raise NotFoundError("Suggestion trial not found", code="suggestion_trial_not_found") from exc
+
+        candidate_value = (
             self.settings.failed_brew_score
             if failed
             else (score if score is not None else brew.score)
         )
-        if value is None:
-            raise ValidationError("Score is required when applying suggestion")
-        study.tell(suggestion.trial_number, float(value))
+        value = self._validate_score(candidate_value)
+        study.tell(suggestion.trial_number, value)
         suggestion.brew_id = brew_id
         suggestion.status = "applied"
         brew.score = value
         brew.failed = failed
         self.db.commit()
         self.db.refresh(suggestion)
+        self.logger.info(
+            "optimisation.suggestion.applied",
+            extra={
+                "study_key": suggestion.study_key,
+                "trial_number": suggestion.trial_number,
+                "suggestion_id": str(suggestion.id),
+                "brew_id": str(brew_id),
+                "score": value,
+                "failed": failed,
+            },
+        )
         return suggestion
 
     def insights(self, study_key: str) -> OptimisationInsight:
