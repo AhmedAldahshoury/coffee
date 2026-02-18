@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from uuid import UUID
 
 from argon2 import PasswordHasher
@@ -7,10 +8,19 @@ from jose import JWTError, jwt
 
 from coffee_backend.core.config import get_settings
 
-password_hasher = PasswordHasher()
+
+@lru_cache(maxsize=1)
+def get_password_hasher() -> PasswordHasher:
+    settings = get_settings()
+    return PasswordHasher(
+        time_cost=settings.hash_time_cost,
+        memory_cost=settings.hash_memory_cost,
+        parallelism=settings.hash_parallelism,
+    )
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    password_hasher = get_password_hasher()
     try:
         return password_hasher.verify(hashed_password, plain_password)
     except (VerifyMismatchError, InvalidHashError):
@@ -18,7 +28,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def hash_password(password: str) -> str:
-    return password_hasher.hash(password)
+    return get_password_hasher().hash(password)
 
 
 def create_access_token(user_id: UUID) -> str:

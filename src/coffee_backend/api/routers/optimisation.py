@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from coffee_backend.schemas.optimisation import (
 from coffee_backend.services.optimisation_service import OptimisationService
 
 router = APIRouter(prefix="/optimisation", tags=["optimisation"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/studies")
@@ -26,6 +28,10 @@ def create_study(
 ) -> dict[str, str]:
     service = OptimisationService(db)
     study_key = service.ensure_study(user.id, payload)
+    logger.info(
+        "optimisation.study.requested",
+        extra={"user_id": str(user.id), "study_key": study_key},
+    )
     return {"study_key": study_key}
 
 
@@ -35,6 +41,10 @@ def suggest(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
+    logger.info(
+        "optimisation.suggest.requested",
+        extra={"user_id": str(user.id), "method": payload.method},
+    )
     return OptimisationService(db).suggest(user.id, payload)
 
 
@@ -45,6 +55,14 @@ def apply_suggestion(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
+    logger.info(
+        "optimisation.apply.requested",
+        extra={
+            "user_id": str(user.id),
+            "suggestion_id": str(suggestion_id),
+            "brew_id": str(payload.brew_id),
+        },
+    )
     return OptimisationService(db).apply(
         user.id,
         suggestion_id,

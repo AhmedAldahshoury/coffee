@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,12 +12,15 @@ from coffee_backend.schemas.user import TokenResponse, UserCreate, UserLogin, Us
 from coffee_backend.services.user_service import UserService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(payload: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
     service = UserService(db)
-    return service.create_user(payload)
+    user = service.create_user(payload)
+    logger.info("auth.register.success", extra={"user_id": str(user.id), "email": user.email})
+    return user
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -24,7 +28,9 @@ def login(payload: UserLogin, db: Annotated[Session, Depends(get_db)]) -> TokenR
     service = UserService(db)
     user = service.authenticate(payload.email, payload.password)
     if user is None:
+        logger.warning("auth.login.failed", extra={"email": payload.email})
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    logger.info("auth.login.success", extra={"user_id": str(user.id), "email": user.email})
     return TokenResponse(access_token=create_access_token(user.id))
 
 

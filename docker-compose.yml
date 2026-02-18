@@ -2,9 +2,10 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: coffee
-      POSTGRES_USER: coffee
-      POSTGRES_PASSWORD: coffee
+      # Dev defaults only. Override via .env in real deployments.
+      POSTGRES_DB: ${POSTGRES_DB:-coffee}
+      POSTGRES_USER: ${POSTGRES_USER:-coffee}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-coffee-dev-password}
     ports:
       - "5432:5432"
     volumes:
@@ -15,10 +16,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     env_file:
-      - .env.example
+      - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://coffee:coffee@postgres:5432/coffee
-      JWT_SECRET: dev-secret
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://coffee:coffee-dev-password@postgres:5432/coffee}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      APP_ENV: ${APP_ENV:-local}
     ports:
       - "8000:8000"
     depends_on:
