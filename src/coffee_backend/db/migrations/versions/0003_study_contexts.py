@@ -102,14 +102,10 @@ def upgrade() -> None:
             {"variant_id": _default_variant(brew.method), "brew_id": brew.id},
         )
 
-    suggestions = connection.execute(
-        sa.text(
-            """
+    suggestions = connection.execute(sa.text("""
             SELECT id, user_id, study_key
             FROM suggestions
-            """
-        )
-    ).fetchall()
+            """)).fetchall()
 
     for suggestion in suggestions:
         raw = suggestion.study_key
@@ -153,8 +149,7 @@ def upgrade() -> None:
         if existing is None:
             context_id = uuid4()
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO study_contexts (
                         id,
                         user_id,
@@ -173,8 +168,7 @@ def upgrade() -> None:
                         :equipment_id,
                         :study_key
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": context_id,
                     "user_id": suggestion.user_id,
@@ -189,14 +183,12 @@ def upgrade() -> None:
             context_id = existing.id
 
         connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE suggestions
                 SET study_context_id = :study_context_id,
                     study_key = :study_key
                 WHERE id = :suggestion_id
-                """
-            ),
+                """),
             {
                 "study_context_id": context_id,
                 "study_key": study_key,
