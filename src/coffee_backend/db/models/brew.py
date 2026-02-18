@@ -23,6 +23,7 @@ class Brew(Base, UUIDMixin, TimestampMixin):
         Uuid, ForeignKey("equipment.id"), nullable=True
     )
     method: Mapped[BrewMethod] = mapped_column(String(50), index=True)
+    variant_id: Mapped[str] = mapped_column(String(100), index=True)
     parameters: Mapped[dict[str, object]] = mapped_column(JSON)
     extra_data: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     brewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

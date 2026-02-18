@@ -89,14 +89,14 @@ curl -X POST http://localhost:8000/api/v1/brews \
 coffee db migrate
 coffee user create --email me@example.com --password secret
 coffee brew add --user-id <uuid> --method aeropress --brewed-at 2026-01-01T10:00:00+00:00 --parameters-json '{"grind_size":10,"water_temp":90.0,"brew_time_sec":120}'
-coffee optimise suggest --user-id <uuid> --method aeropress
+coffee optimise suggest --user-id <uuid> --method-id aeropress --variant-id aeropress_standard
 coffee import csv --user-id <uuid> --method aeropress --data ./aeropress.data.csv --meta ./aeropress.meta.csv
 coffee export csv --user-id <uuid> --out ./exports
 ```
 
 ## Optimisation lifecycle
-1. Create/ensure a deterministic study scope key: `u:{user_id}:m:{method_lower}:b:{bean|none}:e:{equipment|none}:r:{recipe|none}`.
-2. Request suggestion via ask flow (`study.ask` + parameter registry distributions) and persist identifiers (`id`, `study_key`, `trial_number`, suggested params).
+1. Create/ensure a deterministic `StudyContext` and key: `u:{user_id}|m:{method_id}|v:{variant_id}|b:{bean|none}|e:{equipment|none}`.
+2. Request suggestion via ask flow (`study.ask` + method profile distributions) and persist identifiers (`id`, `study_key`, `trial_number`, suggested params).
 3. Brew with suggested params and record a score.
 4. Apply suggestion via tell flow (`study.tell`) with score validation (`0.0..10.0`) and trial/study existence checks.
 5. Apply is explicitly non-idempotent: a suggestion can be applied once and subsequent applies return `suggestion_already_applied`.
@@ -118,7 +118,8 @@ coffee export csv --user-id <uuid> --out ./exports
 
 ### Brew list filtering/sorting
 - `/api/v1/brews` also supports:
-  - `method`
+ - `method`
+  - `variant_id`
   - `brewed_from` / `brewed_to` (ISO-8601 datetime)
   - `sort_by` (`date` or `score`)
   - `sort_order` (`asc` or `desc`)

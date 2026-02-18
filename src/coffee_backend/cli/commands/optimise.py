@@ -12,13 +12,16 @@ app = typer.Typer(help="Optimisation commands")
 @app.command("suggest")
 def suggest(
     user_id: UUID,
-    method: str,
+    method_id: str,
+    variant_id: str | None = None,
     bean_id: UUID | None = None,
     equipment_id: UUID | None = None,
-    recipe_id: UUID | None = None,
 ) -> None:
     req = StudyRequest(
-        method=method, bean_id=bean_id, equipment_id=equipment_id, recipe_id=recipe_id
+        method_id=method_id,
+        variant_id=variant_id,
+        bean_id=bean_id,
+        equipment_id=equipment_id,
     )
     with get_cli_db_session() as db:
         s = OptimisationService(db).suggest(user_id, req)

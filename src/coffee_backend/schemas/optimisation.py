@@ -7,10 +7,18 @@ from coffee_backend.schemas.common import TimestampedSchema
 
 
 class StudyRequest(BaseModel):
-    method: str
+    method_id: str
+    variant_id: str | None = None
     bean_id: UUID | None = None
     equipment_id: UUID | None = None
-    recipe_id: UUID | None = None
+
+
+class StudyContextRead(BaseModel):
+    study_key: str
+    method_id: str
+    variant_id: str
+    bean_id: UUID | None = None
+    equipment_id: UUID | None = None
 
 
 class SuggestionRead(TimestampedSchema):

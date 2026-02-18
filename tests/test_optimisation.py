@@ -33,7 +33,7 @@ def test_optimise_suggest_schema(client: TestClient):
     response = client.post(
         "/api/v1/optimisation/suggest",
         headers={"Authorization": f"Bearer {token}"},
-        json={"method": "aeropress"},
+        json={"method_id": "aeropress"},
     )
     assert response.status_code == 200
     payload = response.json()
@@ -41,8 +41,8 @@ def test_optimise_suggest_schema(client: TestClient):
     assert payload["id"]
     assert payload["study_key"].startswith("u:")
     assert isinstance(payload["trial_number"], int)
-    assert "grind_size" in params
-    assert "water_temp" in params
+    assert "dose_g" in params
+    assert "water_g" in params
 
 
 def test_optimisation_suggest_then_apply_increments_completed_trial_count(client: TestClient):
@@ -50,7 +50,7 @@ def test_optimisation_suggest_then_apply_increments_completed_trial_count(client
     suggest_response = client.post(
         "/api/v1/optimisation/suggest",
         headers={"Authorization": f"Bearer {token}"},
-        json={"method": "aeropress"},
+        json={"method_id": "aeropress"},
     )
     assert suggest_response.status_code == 200
     suggestion = suggest_response.json()
@@ -88,7 +88,7 @@ def test_optimisation_study_persists_across_app_sessions(test_settings: Settings
         first_suggest = client.post(
             "/api/v1/optimisation/suggest",
             headers={"Authorization": f"Bearer {token}"},
-            json={"method": "aeropress"},
+            json={"method_id": "aeropress"},
         )
         assert first_suggest.status_code == 200
         first_payload = first_suggest.json()
@@ -99,7 +99,7 @@ def test_optimisation_study_persists_across_app_sessions(test_settings: Settings
         second_suggest = client.post(
             "/api/v1/optimisation/suggest",
             headers={"Authorization": f"Bearer {token}"},
-            json={"method": "aeropress"},
+            json={"method_id": "aeropress"},
         )
         assert second_suggest.status_code == 200
         second_payload = second_suggest.json()
@@ -114,7 +114,7 @@ def test_optimisation_invalid_apply_returns_clear_error_code(client: TestClient)
     suggest_response = client.post(
         "/api/v1/optimisation/suggest",
         headers={"Authorization": f"Bearer {token}"},
-        json={"method": "aeropress"},
+        json={"method_id": "aeropress"},
     )
     suggestion_id = suggest_response.json()["id"]
     brew_id = create_brew(client, token)
@@ -126,3 +126,71 @@ def test_optimisation_invalid_apply_returns_clear_error_code(client: TestClient)
     )
     assert response.status_code == 422
     assert response.json()["code"] == "suggestion_score_out_of_range"
+
+
+def test_study_key_differs_for_same_method_different_beans(client: TestClient):
+    token = auth_token(client)
+
+    bean_1 = client.post(
+        "/api/v1/beans",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "Bean One"},
+    ).json()["id"]
+    bean_2 = client.post(
+        "/api/v1/beans",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "Bean Two"},
+    ).json()["id"]
+
+    first = client.post(
+        "/api/v1/optimisation/studies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress", "bean_id": bean_1},
+    )
+    second = client.post(
+        "/api/v1/optimisation/studies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress", "bean_id": bean_2},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["study_key"] != second.json()["study_key"]
+
+
+def test_study_key_differs_for_v60_vs_aeropress(client: TestClient):
+    token = auth_token(client)
+
+    aeropress = client.post(
+        "/api/v1/optimisation/studies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress"},
+    )
+    v60 = client.post(
+        "/api/v1/optimisation/studies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "v60"},
+    )
+
+    assert aeropress.status_code == 200
+    assert v60.status_code == 200
+    assert aeropress.json()["study_key"] != v60.json()["study_key"]
+
+
+def test_study_key_differs_for_variants(client: TestClient):
+    token = auth_token(client)
+
+    standard = client.post(
+        "/api/v1/optimisation/studies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress", "variant_id": "aeropress_standard"},
+    )
+    inverted = client.post(
+        "/api/v1/optimisation/studies",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"method_id": "aeropress", "variant_id": "aeropress_inverted"},
+    )
+
+    assert standard.status_code == 200
+    assert inverted.status_code == 200
+    assert standard.json()["study_key"] != inverted.json()["study_key"]

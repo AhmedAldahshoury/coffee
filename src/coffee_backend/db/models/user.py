@@ -17,3 +17,6 @@ class User(Base, UUIDMixin, TimestampMixin):
     recipes = relationship("Recipe", back_populates="user", cascade="all, delete-orphan")
     brews = relationship("Brew", back_populates="user", cascade="all, delete-orphan")
     suggestions = relationship("Suggestion", back_populates="user", cascade="all, delete-orphan")
+    study_contexts = relationship(
+        "StudyContext", back_populates="user", cascade="all, delete-orphan"
+    )
