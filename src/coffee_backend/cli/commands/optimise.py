@@ -17,7 +17,9 @@ def suggest(
     equipment_id: UUID | None = None,
     recipe_id: UUID | None = None,
 ) -> None:
-    req = StudyRequest(method=method, bean_id=bean_id, equipment_id=equipment_id, recipe_id=recipe_id)
+    req = StudyRequest(
+        method=method, bean_id=bean_id, equipment_id=equipment_id, recipe_id=recipe_id
+    )
     with SessionLocal() as db:
         s = OptimisationService(db).suggest(user_id, req)
         typer.echo(f"{s.id} {s.suggested_parameters}")

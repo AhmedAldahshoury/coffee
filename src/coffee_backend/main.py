@@ -1,7 +1,18 @@
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 
-from coffee_backend.api.routers import analytics, auth, beans, brews, equipment, health, import_export, optimisation, recipes, users
+from coffee_backend.api.routers import (
+    analytics,
+    auth,
+    beans,
+    brews,
+    equipment,
+    health,
+    import_export,
+    optimisation,
+    recipes,
+    users,
+)
 from coffee_backend.core.logging import configure_logging
 
 configure_logging()

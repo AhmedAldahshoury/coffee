@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session, sessionmaker
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["JWT_SECRET"] = "test-secret"
 
-from coffee_backend.api.deps import get_db  # noqa: E402
-from coffee_backend.db.base import Base  # noqa: E402
-from coffee_backend.main import app  # noqa: E402
+from coffee_backend.api.deps import get_db
+from coffee_backend.db.base import Base
+from coffee_backend.main import app
 
 engine = create_engine("sqlite:///./test.db", connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)

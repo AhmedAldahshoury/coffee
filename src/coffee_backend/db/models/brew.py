@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, JSON, String, Text, Uuid
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from coffee_backend.db.base import Base
@@ -12,10 +12,16 @@ from coffee_backend.db.models.enums import BrewMethod
 class Brew(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "brews"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     bean_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("beans.id"), nullable=True)
-    recipe_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("recipes.id"), nullable=True)
-    equipment_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("equipment.id"), nullable=True)
+    recipe_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("recipes.id"), nullable=True
+    )
+    equipment_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("equipment.id"), nullable=True
+    )
     method: Mapped[BrewMethod] = mapped_column(String(50), index=True)
     parameters: Mapped[dict[str, object]] = mapped_column(JSON)
     extra_data: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)

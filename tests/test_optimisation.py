@@ -1,6 +1,8 @@
 def auth_token(client):
     client.post("/api/v1/auth/register", json={"email": "opt@example.com", "password": "pass123"})
-    res = client.post("/api/v1/auth/login", json={"email": "opt@example.com", "password": "pass123"})
+    res = client.post(
+        "/api/v1/auth/login", json={"email": "opt@example.com", "password": "pass123"}
+    )
     return res.json()["access_token"]
 
 

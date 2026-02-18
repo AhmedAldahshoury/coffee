@@ -15,7 +15,9 @@ def add_brew(
     user_id: UUID = typer.Option(..., "--user-id", help="Owner user id"),
     method: str = typer.Option(..., "--method", help="Brew method, e.g. aeropress"),
     brewed_at: str = typer.Option(..., "--brewed-at", help="ISO timestamp"),
-    parameters_json: str = typer.Option(..., "--parameters-json", help="JSON object of brew parameters"),
+    parameters_json: str = typer.Option(
+        ..., "--parameters-json", help="JSON object of brew parameters"
+    ),
     score: float | None = typer.Option(None, "--score", help="Optional brew score"),
     failed: bool = typer.Option(False, "--failed", help="Mark brew as failed"),
     comments: str = typer.Option("", "--comments", help="Optional comments"),

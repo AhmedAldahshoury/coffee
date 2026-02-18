@@ -18,7 +18,9 @@ class ImportExportService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _hash_brew(self, user_id: UUID, brewed_at: datetime, params: dict[str, object], score: object) -> str:
+    def _hash_brew(
+        self, user_id: UUID, brewed_at: datetime, params: dict[str, object], score: object
+    ) -> str:
         payload = json.dumps(
             {
                 "user_id": str(user_id),
@@ -40,7 +42,9 @@ class ImportExportService:
         with data_path.open("r", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
             for row in reader:
-                brewed_at = datetime.fromisoformat(row.get("date", datetime.now(timezone.utc).isoformat()))
+                brewed_at = datetime.fromisoformat(
+                    row.get("date", datetime.now(timezone.utc).isoformat())
+                )
                 score_value = row.get("score")
                 score = float(score_value) if score_value not in (None, "") else None
                 failed = row.get("failed", "false").lower() == "true"
@@ -89,10 +93,21 @@ class ImportExportService:
     def export_csv(self, user_id: UUID, out_dir: str) -> CSVExportResult:
         output = Path(out_dir)
         output.mkdir(parents=True, exist_ok=True)
-        brews = list(self.db.scalars(select(Brew).where(Brew.user_id == user_id).order_by(Brew.brewed_at)))
+        brews = list(
+            self.db.scalars(select(Brew).where(Brew.user_id == user_id).order_by(Brew.brewed_at))
+        )
         path = output / "brews.export.csv"
         with path.open("w", encoding="utf-8", newline="") as handle:
-            fieldnames = ["id", "method", "brewed_at", "score", "failed", "comments", "parameters", "extra_data"]
+            fieldnames = [
+                "id",
+                "method",
+                "brewed_at",
+                "score",
+                "failed",
+                "comments",
+                "parameters",
+                "extra_data",
+            ]
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             for brew in brews:

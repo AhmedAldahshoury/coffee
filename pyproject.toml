@@ -50,10 +50,18 @@ target-version = ["py310"]
 line-length = 100
 target-version = "py310"
 src = ["src", "tests"]
+extend-exclude = ["legacy"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "N", "C4", "SIM", "RUF"]
 ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/coffee_backend/db/migrations/env.py" = ["E402"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
 
 [tool.mypy]
 python_version = "3.10"

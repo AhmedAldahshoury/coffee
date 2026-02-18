@@ -14,7 +14,9 @@ def create_user(
     name: str = typer.Option("", "--name", help="Optional display name"),
 ) -> None:
     with SessionLocal() as db:
-        user = UserService(db).create_user(UserCreate(email=email, password=password, name=name or None))
+        user = UserService(db).create_user(
+            UserCreate(email=email, password=password, name=name or None)
+        )
         typer.echo(f"Created user {user.id} ({user.email})")
 
 
