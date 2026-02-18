@@ -79,6 +79,11 @@ curl -X POST http://localhost:8000/api/v1/brews \
   -d '{"method":"aeropress","brewed_at":"2026-01-01T10:00:00Z","parameters":{"grind_size":10,"water_temp":91.0,"brew_time_sec":120}}'
 ```
 
+## Brew method profile endpoints
+- `GET /api/v1/methods`: list available methods, variants, and schema versions.
+- `GET /api/v1/methods/{method_id}`: return full parameter schemas for all variants under a method.
+- `GET /api/v1/methods/{method_id}/{variant_id}`: return the full parameter schema for one variant.
+
 ## CLI examples
 ```bash
 coffee db migrate
