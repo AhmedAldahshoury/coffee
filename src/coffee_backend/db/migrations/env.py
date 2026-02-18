@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 from logging.config import fileConfig
@@ -13,15 +14,17 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from coffee_backend.db.base import Base
-from coffee_backend.db.models import (
-    bean,
-    brew,
-    equipment,
-    method_profile,
-    optuna_study,
-    recipe,
-    user,
-)  # noqa: F401
+
+for module in (
+    "coffee_backend.db.models.bean",
+    "coffee_backend.db.models.brew",
+    "coffee_backend.db.models.equipment",
+    "coffee_backend.db.models.method_profile",
+    "coffee_backend.db.models.optuna_study",
+    "coffee_backend.db.models.recipe",
+    "coffee_backend.db.models.user",
+):
+    importlib.import_module(module)
 
 config = context.config
 if config.config_file_name is not None:

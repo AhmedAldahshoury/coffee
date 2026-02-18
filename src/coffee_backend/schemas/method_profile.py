@@ -13,9 +13,18 @@ class DependsOnSchema(BaseModel):
 class MethodParameterDefinition(BaseModel):
     name: str = Field(description="Stable parameter key.")
     type: Literal["int", "float", "bool", "enum"] = Field(description="Parameter data type.")
-    min: int | float | None = Field(default=None, description="Inclusive lower bound for numeric values.")
-    max: int | float | None = Field(default=None, description="Inclusive upper bound for numeric values.")
-    step: int | float | None = Field(default=None, description="Increment step for numeric values.")
+    min: int | float | None = Field(
+        default=None,
+        description="Inclusive lower bound for numeric values.",
+    )
+    max: int | float | None = Field(
+        default=None,
+        description="Inclusive upper bound for numeric values.",
+    )
+    step: int | float | None = Field(
+        default=None,
+        description="Increment step for numeric values.",
+    )
     unit: str | None = Field(default=None, description="Display unit for the parameter.")
     default: int | float | bool | str = Field(description="Default parameter value.")
     description: str = Field(description="Short description of the parameter in British English.")
@@ -27,7 +36,10 @@ class MethodParameterDefinition(BaseModel):
 
 class MethodProfileSchema(BaseModel):
     method_id: str = Field(description="Brew method identifier.")
-    variant_id: str | None = Field(default=None, description="Optional method profile variant identifier.")
+    variant_id: str | None = Field(
+        default=None,
+        description="Optional method profile variant identifier.",
+    )
     schema_version: int = Field(description="Schema version number.")
     parameters: list[MethodParameterDefinition] = Field(
         description="Parameter definitions for this brew method profile."
@@ -35,7 +47,10 @@ class MethodProfileSchema(BaseModel):
 
 
 class MethodVariantSummary(BaseModel):
-    variant_id: str | None = Field(default=None, description="Optional method profile variant identifier.")
+    variant_id: str | None = Field(
+        default=None,
+        description="Optional method profile variant identifier.",
+    )
     schema_version: int = Field(description="Latest schema version for this variant.")
 
 
