@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from coffee_backend.core.exceptions import NotFoundError
@@ -21,9 +23,40 @@ class BrewService:
         self.db.refresh(brew)
         return brew
 
-    def list_brews(self, user_id: str) -> list[Brew]:
-        query = select(Brew).where(Brew.user_id == user_id).order_by(Brew.brewed_at.desc())
-        return list(self.db.scalars(query))
+    def list_brews(
+        self,
+        user_id: str,
+        page: int | None = None,
+        page_size: int | None = None,
+        include_total: bool = False,
+        method: str | None = None,
+        brewed_from: datetime | None = None,
+        brewed_to: datetime | None = None,
+        sort_by: str = "date",
+        sort_order: str = "desc",
+    ) -> tuple[list[Brew], int | None]:
+        filters = [Brew.user_id == user_id]
+        if method is not None:
+            filters.append(Brew.method == method)
+        if brewed_from is not None:
+            filters.append(Brew.brewed_at >= brewed_from)
+        if brewed_to is not None:
+            filters.append(Brew.brewed_at <= brewed_to)
+
+        sort_column = Brew.brewed_at if sort_by == "date" else Brew.score
+        order_clause = sort_column.asc() if sort_order == "asc" else sort_column.desc()
+
+        query = select(Brew).where(*filters).order_by(order_clause, Brew.created_at.desc())
+
+        total: int | None = None
+        if include_total:
+            total = self.db.scalar(select(func.count()).select_from(Brew).where(*filters)) or 0
+
+        if page is not None and page_size is not None:
+            offset = (page - 1) * page_size
+            query = query.offset(offset).limit(page_size)
+
+        return list(self.db.scalars(query)), total
 
     def get_brew(self, user_id: str, brew_id: str) -> Brew:
         brew = self.db.scalar(select(Brew).where(Brew.id == brew_id, Brew.user_id == user_id))

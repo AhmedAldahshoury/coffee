@@ -22,3 +22,10 @@ class BrewCreate(BaseModel):
 
 class BrewRead(TimestampedSchema, BrewCreate):
     pass
+
+
+class BrewListResponse(BaseModel):
+    items: list[BrewRead]
+    page: int
+    page_size: int
+    total: int | None = None

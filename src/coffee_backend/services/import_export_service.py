@@ -33,6 +33,8 @@ LEGACY_EXTRA_DATA_KEYS: dict[str, set[str]] = {"aeropress": {"brand", "pressing 
 
 
 class ImportExportService:
+    BATCH_SIZE = 250
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -72,14 +74,17 @@ class ImportExportService:
 
         method = request.method or data_path.name.split(".")[0]
         schema = METHOD_PARAMETER_REGISTRY.get(method)
-        imported = 0
+        inserted = 0
         skipped = 0
+        processed = 0
         errors: list[CSVImportError] = []
         seen_import_hashes: set[str] = set()
+        pending_inserts = 0
 
         with data_path.open("r", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
             for row_index, row in enumerate(reader, start=2):
+                processed += 1
                 try:
                     brewed_at = datetime.fromisoformat(
                         row.get("date", datetime.now(timezone.utc).isoformat())
@@ -122,7 +127,9 @@ class ImportExportService:
                         skipped += 1
                         continue
 
-                    existing = self.db.scalar(select(Brew).where(Brew.import_hash == import_hash))
+                    existing = self.db.scalar(
+                        select(Brew.id).where(Brew.import_hash == import_hash)
+                    )
                     if existing:
                         skipped += 1
                         seen_import_hashes.add(import_hash)
@@ -142,7 +149,13 @@ class ImportExportService:
                         import_hash=import_hash,
                     )
                     self.db.add(brew)
-                    imported += 1
+                    inserted += 1
+                    pending_inserts += 1
+
+                    if pending_inserts >= self.BATCH_SIZE:
+                        self.db.flush()
+                        self.db.commit()
+                        pending_inserts = 0
                 except ValidationError as exc:
                     skipped += 1
                     errors.append(
@@ -154,8 +167,17 @@ class ImportExportService:
                         )
                     )
 
+        if pending_inserts:
+            self.db.flush()
         self.db.commit()
-        return CSVImportResult(imported=imported, skipped=skipped, errors=errors)
+        return CSVImportResult(
+            processed=processed,
+            inserted=inserted,
+            imported=inserted,
+            skipped=skipped,
+            error_count=len(errors),
+            errors=errors,
+        )
 
     def export_csv(self, user_id: UUID, out_dir: str) -> CSVExportResult:
         output = Path(out_dir)
