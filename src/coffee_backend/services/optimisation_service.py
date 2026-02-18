@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import logging
+from datetime import datetime, timezone
 from uuid import UUID
 
 import optuna
@@ -131,7 +131,10 @@ class OptimisationService:
         try:
             study.get_trial(suggestion.trial_number)
         except KeyError as exc:
-            raise NotFoundError("Suggestion trial not found", code="suggestion_trial_not_found") from exc
+            raise NotFoundError(
+                "Suggestion trial not found",
+                code="suggestion_trial_not_found",
+            ) from exc
 
         candidate_value = (
             self.settings.failed_brew_score
