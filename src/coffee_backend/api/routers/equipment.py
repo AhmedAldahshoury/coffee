@@ -42,9 +42,12 @@ def list_equipment(
 
     total = None
     if include_total:
-        total = db.scalar(
-            select(func.count()).select_from(Equipment).where(Equipment.user_id == user.id)
-        ) or 0
+        total = (
+            db.scalar(
+                select(func.count()).select_from(Equipment).where(Equipment.user_id == user.id)
+            )
+            or 0
+        )
 
     if page is not None and page_size is not None:
         query = query.offset((page - 1) * page_size).limit(page_size)
