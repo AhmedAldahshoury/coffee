@@ -15,8 +15,11 @@ class CSVImportError(BaseModel):
 
 
 class CSVImportResult(BaseModel):
+    processed: int
+    inserted: int
     imported: int
     skipped: int
+    error_count: int
     errors: list[CSVImportError] = Field(default_factory=list)
 
 

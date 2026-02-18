@@ -84,6 +84,23 @@ coffee export csv --user-id <uuid> --out ./exports
 - Unknown columns are preserved in `extra_data`.
 - Repeat imports are idempotent by deterministic brew hash.
 
+
+
+### List endpoint pagination
+- Supported on list endpoints (`/brews`, `/beans`, `/equipment`, `/recipes`, `/users`).
+- Query params:
+  - `page` (default: `1` when pagination is requested)
+  - `page_size` (default: `20` when pagination is requested, max: `100`)
+  - `include_total` (default: `false`)
+- Backwards compatibility: if `page`/`page_size` are omitted, endpoints return the original array response.
+
+### Brew list filtering/sorting
+- `/api/v1/brews` also supports:
+  - `method`
+  - `brewed_from` / `brewed_to` (ISO-8601 datetime)
+  - `sort_by` (`date` or `score`)
+  - `sort_order` (`asc` or `desc`)
+
 ## Quality checks
 ```bash
 make lint
