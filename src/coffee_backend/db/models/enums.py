@@ -6,3 +6,8 @@ class BrewMethod(str, Enum):
     POUROVER = "pourover"
     ESPRESSO = "espresso"
     FRENCH_PRESS = "french_press"
+
+
+class BrewStatus(str, Enum):
+    OK = "ok"
+    FAILED = "failed"

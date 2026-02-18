@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import isclose
 from uuid import UUID
 
 import optuna
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 from coffee_backend.core.config import get_settings
 from coffee_backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from coffee_backend.db.models.brew import Brew
+from coffee_backend.db.models.enums import BrewStatus
 from coffee_backend.db.models.method_profile import MethodProfile
 from coffee_backend.db.models.optuna_study import StudyContext, Suggestion
 from coffee_backend.schemas.optimisation import OptimisationInsight, StudyRequest
@@ -66,6 +68,20 @@ class OptimisationService:
         default_variant = next((p.variant_id for p in profiles if "default" in p.variant_id), None)
         return default_variant or profiles[0].variant_id
 
+    def _get_method_profile(self, method_id: str, variant_id: str) -> MethodProfile:
+        profile = self.db.scalar(
+            select(MethodProfile)
+            .where(MethodProfile.method_id == method_id)
+            .where(MethodProfile.variant_id == variant_id)
+            .order_by(MethodProfile.schema_version.desc())
+        )
+        if profile is None:
+            raise ValidationError(
+                f"Unsupported method variant '{method_id}/{variant_id}'",
+                code="unsupported_method_variant",
+            )
+        return profile
+
     def canonicalise_context(self, user_id: UUID, req: StudyRequest) -> CanonicalStudyContext:
         method_id = req.method_id.strip().lower()
         variant_id = self._resolve_variant_id(method_id, req.variant_id)
@@ -113,40 +129,194 @@ class OptimisationService:
         self.logger.info("optimisation.study.ensured", extra={"study_key": study_key})
         return study_context
 
-    def _ask_params(
-        self, trial: optuna.Trial, method_id: str, variant_id: str
-    ) -> dict[str, object]:
-        profile = self.db.scalar(
-            select(MethodProfile)
-            .where(MethodProfile.method_id == method_id)
-            .where(MethodProfile.variant_id == variant_id)
-            .order_by(MethodProfile.schema_version.desc())
+    def _suggest_param_from_spec(self, trial: optuna.Trial, spec: dict[str, object]) -> object:
+        name = str(spec["name"])
+        ptype = str(spec["type"])
+        if ptype == "int":
+            step = int(spec.get("step") or 1)
+            return trial.suggest_int(name, int(spec["min"]), int(spec["max"]), step=step)
+        if ptype == "float":
+            step = spec.get("step")
+            if step is not None:
+                return trial.suggest_float(
+                    name,
+                    float(spec["min"]),
+                    float(spec["max"]),
+                    step=float(step),
+                )
+            return trial.suggest_float(name, float(spec["min"]), float(spec["max"]))
+        if ptype == "bool":
+            return trial.suggest_categorical(name, [True, False])
+        if ptype in {"enum", "categorical"}:
+            choices = spec.get("choices")
+            if not isinstance(choices, list) or not choices:
+                raise ValidationError(
+                    f"Parameter '{name}' enum/categorical requires non-empty choices",
+                    code="invalid_method_profile",
+                )
+            return trial.suggest_categorical(name, choices)
+        raise ValidationError(
+            f"Unsupported parameter type '{ptype}' for '{name}'",
+            code="invalid_method_profile",
         )
-        if profile is None:
-            raise ValidationError("Unsupported method", code="unsupported_method")
-        params: dict[str, object] = {}
-        for spec in profile.parameters:
-            name = str(spec["name"])
-            if spec["type"] == "int":
-                params[name] = trial.suggest_int(name, spec["min"], spec["max"])
-            elif spec["type"] == "float":
-                params[name] = trial.suggest_float(name, spec["min"], spec["max"])
-            elif spec["type"] == "categorical":
-                params[name] = trial.suggest_categorical(name, spec["choices"])
-        return params
+
+    def _validate_param_against_spec(self, spec: dict[str, object], value: object) -> None:
+        name = str(spec["name"])
+        ptype = str(spec["type"])
+
+        if ptype == "int":
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise ValidationError(
+                    f"Invalid value for '{name}': expected int",
+                    code="invalid_suggested_params",
+                    fields={name: "expected int"},
+                )
+            min_v = int(spec["min"])
+            max_v = int(spec["max"])
+            step = int(spec.get("step") or 1)
+            if value < min_v or value > max_v or ((value - min_v) % step != 0):
+                raise ValidationError(
+                    (
+                        f"Invalid value for '{name}': {value} must be between {min_v} and {max_v} "
+                        f"with step {step}"
+                    ),
+                    code="invalid_suggested_params",
+                    fields={name: f"between {min_v}-{max_v} step {step}"},
+                )
+            return
+
+        if ptype == "float":
+            if not isinstance(value, (float, int)) or isinstance(value, bool):
+                raise ValidationError(
+                    f"Invalid value for '{name}': expected number",
+                    code="invalid_suggested_params",
+                    fields={name: "expected number"},
+                )
+            f_value = float(value)
+            min_v = float(spec["min"])
+            max_v = float(spec["max"])
+            if f_value < min_v or f_value > max_v:
+                raise ValidationError(
+                    f"Invalid value for '{name}': {f_value} must be between {min_v} and {max_v}",
+                    code="invalid_suggested_params",
+                    fields={name: f"between {min_v}-{max_v}"},
+                )
+            step = spec.get("step")
+            if step is not None:
+                step_v = float(step)
+                remainder = (f_value - min_v) / step_v
+                if not isclose(remainder, round(remainder), abs_tol=1e-9):
+                    raise ValidationError(
+                        (
+                            f"Invalid value for '{name}': {f_value} must follow step {step_v} "
+                            f"from {min_v}"
+                        ),
+                        code="invalid_suggested_params",
+                        fields={name: f"step {step_v} from {min_v}"},
+                    )
+            return
+
+        if ptype == "bool":
+            if not isinstance(value, bool):
+                raise ValidationError(
+                    f"Invalid value for '{name}': expected bool",
+                    code="invalid_suggested_params",
+                    fields={name: "expected bool"},
+                )
+            return
+
+        if ptype in {"enum", "categorical"}:
+            choices = spec.get("choices")
+            if value not in choices:
+                raise ValidationError(
+                    f"Invalid value for '{name}': choose one of {choices}",
+                    code="invalid_suggested_params",
+                    fields={name: f"one of {choices}"},
+                )
+            return
+
+        raise ValidationError(
+            f"Unsupported parameter type '{ptype}' for '{name}'",
+            code="invalid_method_profile",
+        )
+
+    def _validate_hard_caps(self, method_id: str, params: dict[str, object]) -> None:
+        if method_id == "v60" and "total_time_s" in params:
+            value = params["total_time_s"]
+            if not isinstance(value, int):
+                raise ValidationError(
+                    "Invalid value for 'total_time_s': expected int",
+                    code="invalid_suggested_params",
+                    fields={"total_time_s": "expected int"},
+                )
+            if not (120 <= value <= 300):
+                raise ValidationError(
+                    "Invalid value for 'total_time_s': must be within hard cap 120-300 seconds",
+                    code="invalid_suggested_params",
+                    fields={"total_time_s": "hard cap 120-300"},
+                )
+
+        if method_id == "aeropress" and "plunge_s" in params:
+            value = params["plunge_s"]
+            if not isinstance(value, int):
+                raise ValidationError(
+                    "Invalid value for 'plunge_s': expected int",
+                    code="invalid_suggested_params",
+                    fields={"plunge_s": "expected int"},
+                )
+            if value > 60:
+                raise ValidationError(
+                    "Invalid value for 'plunge_s': must be <= 60 seconds hard cap",
+                    code="invalid_suggested_params",
+                    fields={"plunge_s": "hard cap <= 60"},
+                )
+
+    def _validate_params_for_profile(
+        self,
+        method_id: str,
+        params: dict[str, object],
+        profile: MethodProfile,
+    ) -> None:
+        definitions = {str(spec["name"]): spec for spec in profile.parameters}
+        unknown = sorted(key for key in params if key not in definitions)
+        if unknown:
+            raise ValidationError(
+                "Suggested params contain unknown parameter keys for this method profile",
+                code="invalid_suggested_params",
+                fields=dict.fromkeys(unknown, "unknown parameter for profile"),
+            )
+
+        for key, spec in definitions.items():
+            if key not in params:
+                raise ValidationError(
+                    f"Suggested params missing '{key}'",
+                    code="invalid_suggested_params",
+                    fields={key: "missing parameter"},
+                )
+            self._validate_param_against_spec(spec, params[key])
+
+        self._validate_hard_caps(method_id, params)
 
     def suggest(self, user_id: UUID, req: StudyRequest) -> Suggestion:
         study_context = self.ensure_study_context(user_id, req)
         study_key = study_context.study_key
+        profile = self._get_method_profile(study_context.method_id, study_context.variant_id)
+
         study = optuna.load_study(study_name=study_key, storage=self.storage)
         trial = study.ask()
-        params = self._ask_params(trial, study_context.method_id, study_context.variant_id)
+        params = {
+            str(spec["name"]): self._suggest_param_from_spec(trial, spec)
+            for spec in profile.parameters
+        }
+        self._validate_params_for_profile(study_context.method_id, params, profile)
+
         suggestion = Suggestion(
             user_id=user_id,
             study_context_id=study_context.id,
             study_key=study_key,
             trial_number=trial.number,
-            suggested_parameters=params,
+            suggested_params=params,
+            actual_params=None,
             status="issued",
         )
         self.db.add(suggestion)
@@ -165,7 +335,7 @@ class OptimisationService:
     def _validate_score(self, score: float | None) -> float:
         if score is None:
             raise ValidationError(
-                "Score is required when applying suggestion",
+                "Score is required when applying a non-failed brew suggestion",
                 code="suggestion_score_required",
             )
         if not (self.MIN_SCORE <= float(score) <= self.MAX_SCORE):
@@ -188,18 +358,21 @@ class OptimisationService:
                 "Suggestion was already applied and cannot be applied again",
                 code="suggestion_already_applied",
             )
+
         brew = self.db.scalar(select(Brew).where(Brew.id == brew_id, Brew.user_id == user_id))
         if brew is None:
             raise NotFoundError("Brew not found", code="brew_not_found")
 
+        brew_method = brew.method.value if hasattr(brew.method, "value") else str(brew.method)
         if (
-            brew.method != suggestion.study_context.method_id
+            brew_method != suggestion.study_context.method_id
             or brew.variant_id != suggestion.study_context.variant_id
             or brew.bean_id != suggestion.study_context.bean_id
             or brew.equipment_id != suggestion.study_context.equipment_id
         ):
             raise ValidationError(
-                "Suggestion context does not match brew context",
+                "Suggestion context does not match brew context. Ensure method, variant, "
+                "bean, and equipment are identical.",
                 code="suggestion_context_mismatch",
             )
 
@@ -215,17 +388,21 @@ class OptimisationService:
                 code="suggestion_trial_not_found",
             )
 
-        candidate_value = (
-            self.settings.failed_brew_score
-            if failed
-            else (score if score is not None else brew.score)
-        )
-        value = self._validate_score(candidate_value)
-        study.tell(suggestion.trial_number, value)
+        if failed:
+            objective = float(self.settings.failed_brew_score)
+            brew.status = BrewStatus.FAILED
+            brew.score = None
+        else:
+            candidate_value = score if score is not None else brew.score
+            objective = self._validate_score(candidate_value)
+            brew.status = BrewStatus.OK
+            brew.score = objective
+
+        study.tell(suggestion.trial_number, objective)
+
         suggestion.brew_id = brew_id
+        suggestion.actual_params = dict(brew.parameters)
         suggestion.status = "applied"
-        brew.score = value
-        brew.failed = failed
         self.db.commit()
         self.db.refresh(suggestion)
         self.logger.info(
@@ -235,7 +412,7 @@ class OptimisationService:
                 "trial_number": suggestion.trial_number,
                 "suggestion_id": str(suggestion.id),
                 "brew_id": str(brew_id),
-                "score": value,
+                "objective": objective,
                 "failed": failed,
             },
         )

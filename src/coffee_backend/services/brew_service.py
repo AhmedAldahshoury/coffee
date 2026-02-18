@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from coffee_backend.core.exceptions import NotFoundError
 from coffee_backend.db.models.brew import Brew
+from coffee_backend.db.models.enums import BrewStatus
 from coffee_backend.db.models.method_profile import MethodProfile
 from coffee_backend.schemas.brew import BrewCreate
 from coffee_backend.services.parameter_validation import validate_method_parameters
@@ -37,6 +38,7 @@ class BrewService:
         validate_method_parameters(payload.method, payload.parameters)
         brew_payload = payload.model_dump()
         brew_payload["variant_id"] = self._resolve_variant_id(payload.method, payload.variant_id)
+        brew_payload["status"] = BrewStatus(payload.status)
         brew = Brew(user_id=user_id, **brew_payload, import_hash=import_hash)
         self.db.add(brew)
         self.db.commit()

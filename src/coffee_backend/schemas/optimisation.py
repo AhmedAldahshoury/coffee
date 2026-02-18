@@ -26,7 +26,8 @@ class SuggestionRead(TimestampedSchema):
     brew_id: UUID | None = None
     study_key: str
     trial_number: int
-    suggested_parameters: dict[str, object]
+    suggested_params: dict[str, object]
+    actual_params: dict[str, object] | None = None
     status: str
 
 

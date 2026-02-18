@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text, Uuid
+from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from coffee_backend.db.base import Base
 from coffee_backend.db.models.common import TimestampMixin, UUIDMixin
-from coffee_backend.db.models.enums import BrewMethod
+from coffee_backend.db.models.enums import BrewMethod, BrewStatus
 
 
 class Brew(Base, UUIDMixin, TimestampMixin):
@@ -28,7 +28,7 @@ class Brew(Base, UUIDMixin, TimestampMixin):
     extra_data: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     brewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    failed: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[BrewStatus] = mapped_column(Enum(BrewStatus), default=BrewStatus.OK)
     comments: Mapped[str | None] = mapped_column(Text, nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     import_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)

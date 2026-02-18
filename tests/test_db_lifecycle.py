@@ -33,7 +33,7 @@ def test_create_and_read_brew_in_single_client_session(client: TestClient) -> No
             "parameters": {"grind_size": 10, "water_temp": 90.0, "brew_time_sec": 120},
             "brewed_at": datetime.now(timezone.utc).isoformat(),
             "score": 8.0,
-            "failed": False,
+            "status": "ok",
         },
     )
     assert create_response.status_code == 201
