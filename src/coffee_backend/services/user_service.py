@@ -1,6 +1,8 @@
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from coffee_backend.core.exceptions import ConflictError
 from coffee_backend.core.security import hash_password, verify_password
 from coffee_backend.db.models.user import User
 from coffee_backend.schemas.user import UserCreate
@@ -15,7 +17,15 @@ class UserService:
             email=payload.email, hashed_password=hash_password(payload.password), name=payload.name
         )
         self.db.add(user)
-        self.db.commit()
+        try:
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise ConflictError(
+                "Email already registered",
+                code="email_already_registered",
+                fields={"email": "already exists"},
+            ) from exc
         self.db.refresh(user)
         return user
 

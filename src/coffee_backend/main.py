@@ -1,8 +1,9 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import ORJSONResponse
+from sqlalchemy.exc import IntegrityError
 
 from coffee_backend.api.routers import (
     analytics,
@@ -17,6 +18,7 @@ from coffee_backend.api.routers import (
     users,
 )
 from coffee_backend.core.config import Settings
+from coffee_backend.core.exceptions import APIError, ConflictError
 from coffee_backend.core.logging import configure_logging
 from coffee_backend.db.session import dispose_db_state, init_db_state
 
@@ -37,6 +39,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         default_response_class=ORJSONResponse,
         lifespan=lifespan,
     )
+
+    @app.exception_handler(APIError)
+    async def handle_api_error(_: Request, exc: APIError) -> ORJSONResponse:
+        return ORJSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail, "code": exc.code, "fields": exc.fields},
+        )
+
+    @app.exception_handler(IntegrityError)
+    async def handle_integrity_error(_: Request, __: IntegrityError) -> ORJSONResponse:
+        exc = ConflictError("Resource conflict")
+        return ORJSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail, "code": exc.code, "fields": exc.fields},
+        )
 
     app.include_router(health.router)
     app.include_router(auth.router, prefix="/api/v1")

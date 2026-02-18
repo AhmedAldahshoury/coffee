@@ -1,11 +1,10 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from coffee_backend.api.deps import get_current_user
-from coffee_backend.core.exceptions import ValidationError
 from coffee_backend.db.models.user import User
 from coffee_backend.db.session import get_db
 from coffee_backend.schemas.optimisation import (
@@ -36,10 +35,7 @@ def suggest(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    try:
-        return OptimisationService(db).suggest(user.id, payload)
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return OptimisationService(db).suggest(user.id, payload)
 
 
 @router.post("/suggestions/{suggestion_id}/apply", response_model=SuggestionRead)
@@ -49,16 +45,13 @@ def apply_suggestion(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    try:
-        return OptimisationService(db).apply(
-            user.id,
-            suggestion_id,
-            payload.brew_id,
-            payload.score,
-            payload.failed,
-        )
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return OptimisationService(db).apply(
+        user.id,
+        suggestion_id,
+        payload.brew_id,
+        payload.score,
+        payload.failed,
+    )
 
 
 @router.get("/insights", response_model=OptimisationInsight)

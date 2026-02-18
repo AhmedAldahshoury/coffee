@@ -1,10 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from coffee_backend.api.deps import get_current_user
-from coffee_backend.core.exceptions import ValidationError
 from coffee_backend.db.models.user import User
 from coffee_backend.db.session import get_db
 from coffee_backend.schemas.import_export import CSVImportRequest, CSVImportResult
@@ -19,10 +18,7 @@ def import_csv(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> CSVImportResult:
-    try:
-        return ImportExportService(db).import_csv(user.id, payload)
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ImportExportService(db).import_csv(user.id, payload)
 
 
 @router.get("/export/csv")

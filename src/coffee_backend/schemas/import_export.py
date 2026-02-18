@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CSVImportRequest(BaseModel):
@@ -7,9 +7,17 @@ class CSVImportRequest(BaseModel):
     meta_path: str | None = None
 
 
+class CSVImportError(BaseModel):
+    row: int
+    detail: str
+    code: str
+    fields: dict[str, str] | None = None
+
+
 class CSVImportResult(BaseModel):
     imported: int
     skipped: int
+    errors: list[CSVImportError] = Field(default_factory=list)
 
 
 class CSVExportResult(BaseModel):

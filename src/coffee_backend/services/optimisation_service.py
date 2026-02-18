@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from coffee_backend.core.config import get_settings
-from coffee_backend.core.exceptions import ValidationError
+from coffee_backend.core.exceptions import NotFoundError, ValidationError
 from coffee_backend.db.models.brew import Brew
 from coffee_backend.db.models.optuna_study import Suggestion
 from coffee_backend.schemas.optimisation import OptimisationInsight, StudyRequest
@@ -79,10 +79,10 @@ class OptimisationService:
             select(Suggestion).where(Suggestion.id == suggestion_id, Suggestion.user_id == user_id)
         )
         if suggestion is None:
-            raise ValidationError("Suggestion not found")
+            raise NotFoundError("Suggestion not found", code="suggestion_not_found")
         brew = self.db.scalar(select(Brew).where(Brew.id == brew_id, Brew.user_id == user_id))
         if brew is None:
-            raise ValidationError("Brew not found")
+            raise NotFoundError("Brew not found", code="brew_not_found")
         study = optuna.load_study(study_name=suggestion.study_key, storage=self.storage)
         value = (
             self.settings.failed_brew_score

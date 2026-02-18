@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 
 from coffee_backend.core.exceptions import ValidationError
 from coffee_backend.db.models.brew import Brew
-from coffee_backend.schemas.import_export import CSVExportResult, CSVImportRequest, CSVImportResult
+from coffee_backend.schemas.import_export import (
+    CSVExportResult,
+    CSVImportError,
+    CSVImportRequest,
+    CSVImportResult,
+)
 from coffee_backend.services.parameter_validation import validate_method_parameters
 
 
@@ -32,63 +37,76 @@ class ImportExportService:
         )
         return hashlib.sha256(payload.encode()).hexdigest()
 
+    def _parse_param_value(self, value: str) -> object:
+        if value.replace(".", "", 1).isdigit():
+            if "." in value:
+                return float(value)
+            return int(value)
+        return value
+
     def import_csv(self, user_id: UUID, request: CSVImportRequest) -> CSVImportResult:
         data_path = Path(request.data_path)
         if not data_path.exists():
-            raise ValidationError("Data file not found")
+            raise ValidationError("Data file not found", code="data_file_not_found")
+
         method = request.method or data_path.name.split(".")[0]
         imported = 0
         skipped = 0
+        errors: list[CSVImportError] = []
+
         with data_path.open("r", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
-            for row in reader:
-                brewed_at = datetime.fromisoformat(
-                    row.get("date", datetime.now(timezone.utc).isoformat())
-                )
-                score_value = row.get("score")
-                score = float(score_value) if score_value not in (None, "") else None
-                failed = row.get("failed", "false").lower() == "true"
-                comments = row.get("comments")
-                known = {"date", "score", "failed", "comments", "method"}
-                params: dict[str, object] = {}
-                extra: dict[str, object] = {}
-                for key, value in row.items():
-                    if key in known:
-                        continue
-                    if value is None or value == "":
-                        continue
-                    if value.replace(".", "", 1).isdigit():
-                        if "." in value:
-                            params[key] = float(value)
-                        else:
-                            params[key] = int(value)
-                    else:
-                        params[key] = value
+            for row_index, row in enumerate(reader, start=2):
                 try:
+                    brewed_at = datetime.fromisoformat(
+                        row.get("date", datetime.now(timezone.utc).isoformat())
+                    )
+                    score_value = row.get("score")
+                    score = float(score_value) if score_value not in (None, "") else None
+                    failed = row.get("failed", "false").lower() == "true"
+                    comments = row.get("comments")
+                    known = {"date", "score", "failed", "comments", "method"}
+                    params: dict[str, object] = {}
+
+                    for key, value in row.items():
+                        if key in known or value in (None, ""):
+                            continue
+                        params[key] = self._parse_param_value(value)
+
                     validate_method_parameters(method, params)
-                except ValidationError:
-                    extra.update(params)
-                    params = {}
-                import_hash = self._hash_brew(user_id, brewed_at, params, score)
-                existing = self.db.scalar(select(Brew).where(Brew.import_hash == import_hash))
-                if existing:
+
+                    import_hash = self._hash_brew(user_id, brewed_at, params, score)
+                    existing = self.db.scalar(select(Brew).where(Brew.import_hash == import_hash))
+                    if existing:
+                        skipped += 1
+                        continue
+
+                    brew = Brew(
+                        user_id=user_id,
+                        method=method,
+                        parameters=params,
+                        extra_data=None,
+                        brewed_at=brewed_at,
+                        score=score,
+                        failed=failed,
+                        comments=comments,
+                        import_hash=import_hash,
+                    )
+                    self.db.add(brew)
+                    imported += 1
+                except ValidationError as exc:
                     skipped += 1
-                    continue
-                brew = Brew(
-                    user_id=user_id,
-                    method=method,
-                    parameters=params,
-                    extra_data=extra or None,
-                    brewed_at=brewed_at,
-                    score=score,
-                    failed=failed,
-                    comments=comments,
-                    import_hash=import_hash,
-                )
-                self.db.add(brew)
-                imported += 1
+                    errors.append(
+                        CSVImportError(
+                            row=row_index,
+                            detail=exc.detail,
+                            code=exc.code,
+                            fields=exc.fields,
+                        )
+                    )
+
         self.db.commit()
-        return CSVImportResult(imported=imported, skipped=skipped)
+        return CSVImportResult(imported=imported, skipped=skipped, errors=errors)
 
     def export_csv(self, user_id: UUID, out_dir: str) -> CSVExportResult:
         output = Path(out_dir)
