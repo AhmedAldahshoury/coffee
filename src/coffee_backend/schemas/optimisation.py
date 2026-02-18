@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from coffee_backend.schemas.common import TimestampedSchema
 
@@ -46,3 +46,14 @@ class OptimisationInsight(BaseModel):
     trial_count: int
     parameter_importance: dict[str, float]
     generated_at: datetime
+
+
+class WarmStartRequest(StudyRequest):
+    limit: int | None = Field(default=None, ge=1, le=500)
+
+
+class WarmStartResponse(BaseModel):
+    study_key: str
+    scanned: int
+    added: int
+    skipped: int

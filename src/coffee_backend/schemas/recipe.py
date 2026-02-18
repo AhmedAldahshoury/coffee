@@ -12,3 +12,14 @@ class RecipeCreate(BaseModel):
 
 class RecipeRead(TimestampedSchema, RecipeCreate):
     pass
+
+
+class RecipeStep(BaseModel):
+    text: str
+    timer_seconds: int | None = None
+
+
+class RecipeRenderResponse(BaseModel):
+    title: str
+    equipment: list[str]
+    steps: list[RecipeStep]

@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -6,7 +8,8 @@ from uuid import UUID
 
 import optuna
 from optuna.importance import get_param_importances
-from sqlalchemy import select
+from optuna.trial import create_trial
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from coffee_backend.core.config import get_settings
@@ -15,7 +18,20 @@ from coffee_backend.db.models.brew import Brew
 from coffee_backend.db.models.enums import BrewStatus
 from coffee_backend.db.models.method_profile import MethodProfile
 from coffee_backend.db.models.optuna_study import StudyContext, Suggestion
-from coffee_backend.schemas.optimisation import OptimisationInsight, StudyRequest
+from coffee_backend.schemas.optimisation import (
+    OptimisationInsight,
+    StudyRequest,
+    WarmStartRequest,
+    WarmStartResponse,
+)
+
+
+@dataclass(frozen=True)
+class WarmStartCandidate:
+    dedupe_key: str
+    brew_id: UUID
+    parameters: dict[str, object]
+    score: float
 
 
 @dataclass(frozen=True)
@@ -271,6 +287,43 @@ class OptimisationService:
                     fields={"plunge_s": "hard cap <= 60"},
                 )
 
+    def _distributions_for_profile(
+        self, profile: MethodProfile
+    ) -> dict[str, optuna.distributions.BaseDistribution]:
+        distributions: dict[str, optuna.distributions.BaseDistribution] = {}
+        for spec in profile.parameters:
+            name = str(spec["name"])
+            ptype = str(spec["type"])
+            if ptype == "int":
+                distributions[name] = optuna.distributions.IntDistribution(
+                    low=int(spec["min"]), high=int(spec["max"]), step=int(spec.get("step") or 1)
+                )
+            elif ptype == "float":
+                step = spec.get("step")
+                distributions[name] = optuna.distributions.FloatDistribution(
+                    low=float(spec["min"]),
+                    high=float(spec["max"]),
+                    step=float(step) if step is not None else None,
+                )
+            elif ptype == "bool":
+                distributions[name] = optuna.distributions.CategoricalDistribution(
+                    choices=[True, False]
+                )
+            elif ptype in {"enum", "categorical"}:
+                choices = spec.get("choices")
+                if not isinstance(choices, list) or not choices:
+                    raise ValidationError(
+                        f"Parameter '{name}' enum/categorical requires non-empty choices",
+                        code="invalid_method_profile",
+                    )
+                distributions[name] = optuna.distributions.CategoricalDistribution(choices=choices)
+            else:
+                raise ValidationError(
+                    f"Unsupported parameter type '{ptype}' for '{name}'",
+                    code="invalid_method_profile",
+                )
+        return distributions
+
     def _validate_params_for_profile(
         self,
         method_id: str,
@@ -296,6 +349,105 @@ class OptimisationService:
             self._validate_param_against_spec(spec, params[key])
 
         self._validate_hard_caps(method_id, params)
+
+    def _normalise_param_value(self, value: object) -> object:
+        if isinstance(value, dict):
+            return {str(k): self._normalise_param_value(v) for k, v in sorted(value.items())}
+        if isinstance(value, list):
+            return [self._normalise_param_value(v) for v in value]
+        return value
+
+    def _dedupe_key_for_brew(self, study_key: str, brew: Brew) -> str:
+        if brew.id is not None:
+            return f"brew:{brew.id}"
+        payload = {
+            "study_key": study_key,
+            "params": self._normalise_param_value(dict(brew.parameters)),
+            "brewed_at": brew.brewed_at.isoformat() if brew.brewed_at is not None else None,
+        }
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return f"hash:{hashlib.sha256(encoded).hexdigest()}"
+
+    def _study_existing_warm_start_keys(self, study: optuna.Study) -> set[str]:
+        keys: set[str] = set()
+        for trial in study.get_trials(deepcopy=False):
+            attrs = trial.user_attrs or {}
+            key = attrs.get("warm_start_key")
+            if isinstance(key, str):
+                keys.add(key)
+        return keys
+
+    def warm_start(self, user_id: UUID, req: WarmStartRequest) -> WarmStartResponse:
+        study_context = self.ensure_study_context(user_id, req)
+        study_key = study_context.study_key
+        profile = self._get_method_profile(study_context.method_id, study_context.variant_id)
+
+        query = (
+            select(Brew)
+            .where(Brew.user_id == user_id)
+            .where(Brew.method == study_context.method_id)
+            .where(Brew.variant_id == study_context.variant_id)
+            .where(Brew.bean_id == study_context.bean_id)
+            .where(Brew.equipment_id == study_context.equipment_id)
+            .where(Brew.status == BrewStatus.OK)
+            .where(Brew.score.is_not(None))
+            .order_by(desc(Brew.brewed_at))
+        )
+        if req.limit is not None:
+            query = query.limit(req.limit)
+
+        brews = list(self.db.scalars(query))
+        candidates: list[WarmStartCandidate] = []
+        for brew in brews:
+            params = dict(brew.parameters)
+            self._validate_params_for_profile(study_context.method_id, params, profile)
+            candidates.append(
+                WarmStartCandidate(
+                    dedupe_key=self._dedupe_key_for_brew(study_key, brew),
+                    brew_id=brew.id,
+                    parameters=params,
+                    score=float(brew.score),
+                )
+            )
+
+        study = optuna.load_study(study_name=study_key, storage=self.storage)
+        known_keys = self._study_existing_warm_start_keys(study)
+        added = 0
+
+        for candidate in candidates:
+            if candidate.dedupe_key in known_keys:
+                continue
+            trial = create_trial(
+                params=candidate.parameters,
+                distributions=self._distributions_for_profile(profile),
+                value=candidate.score,
+                user_attrs={
+                    "warm_start": True,
+                    "warm_start_key": candidate.dedupe_key,
+                    "warm_start_brew_id": str(candidate.brew_id),
+                },
+            )
+            study.add_trial(trial)
+            known_keys.add(candidate.dedupe_key)
+            added += 1
+
+        skipped = len(candidates) - added
+        self.logger.info(
+            "optimisation.warm_start.completed",
+            extra={
+                "study_key": study_key,
+                "scanned": len(candidates),
+                "added": added,
+                "skipped": skipped,
+            },
+        )
+
+        return WarmStartResponse(
+            study_key=study_key,
+            scanned=len(candidates),
+            added=added,
+            skipped=skipped,
+        )
 
     def suggest(self, user_id: UUID, req: StudyRequest) -> Suggestion:
         study_context = self.ensure_study_context(user_id, req)
