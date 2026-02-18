@@ -2,7 +2,14 @@ from http import HTTPStatus
 
 
 class APIError(Exception):
-    def __init__(self, detail: str, *, code: str, status_code: int, fields: dict[str, str] | None = None):
+    def __init__(
+        self,
+        detail: str,
+        *,
+        code: str,
+        status_code: int,
+        fields: dict[str, str] | None = None,
+    ):
         super().__init__(detail)
         self.detail = detail
         self.code = code
@@ -11,7 +18,13 @@ class APIError(Exception):
 
 
 class NotFoundError(APIError):
-    def __init__(self, detail: str, *, code: str = "not_found", fields: dict[str, str] | None = None):
+    def __init__(
+        self,
+        detail: str,
+        *,
+        code: str = "not_found",
+        fields: dict[str, str] | None = None,
+    ):
         super().__init__(
             detail,
             code=code,
@@ -37,7 +50,13 @@ class ValidationError(APIError):
 
 
 class ConflictError(APIError):
-    def __init__(self, detail: str, *, code: str = "conflict", fields: dict[str, str] | None = None):
+    def __init__(
+        self,
+        detail: str,
+        *,
+        code: str = "conflict",
+        fields: dict[str, str] | None = None,
+    ):
         super().__init__(
             detail,
             code=code,

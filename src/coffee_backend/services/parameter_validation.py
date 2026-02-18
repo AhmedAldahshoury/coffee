@@ -17,7 +17,7 @@ def validate_method_parameters(
         raise ValidationError(
             "Unknown parameter keys",
             code="unknown_parameter_keys",
-            fields={key: "unknown parameter" for key in unknown_keys},
+            fields=dict.fromkeys(unknown_keys, "unknown parameter"),
         )
 
     missing_required = sorted(
@@ -27,7 +27,7 @@ def validate_method_parameters(
         raise ValidationError(
             "Missing required parameters",
             code="missing_required_parameters",
-            fields={key: "required parameter missing" for key in missing_required},
+            fields=dict.fromkeys(missing_required, "required parameter missing"),
         )
 
     for name, value in params.items():
