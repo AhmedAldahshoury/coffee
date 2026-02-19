@@ -63,6 +63,13 @@ See `.env.example`:
 - Configure HTTPS/TLS at ingress/load balancer.
 - Auth rate limiting is not yet implemented server-side; enforce minimal rate limits at gateway/WAF/reverse proxy.
 
+## Run Vanilla UI
+```bash
+cd web-vanilla
+python -m http.server 5173
+```
+Open `http://localhost:5173`, set API base URL (default `http://localhost:8000`), and use the Backend Console tabs to exercise auth, brews, import/export, optimisation, and health/meta endpoints.
+
 ## API examples
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/register \

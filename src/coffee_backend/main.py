@@ -81,10 +81,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if resolved_settings.enable_request_id_middleware:
         app.add_middleware(RequestIDMiddleware)
 
-    if resolved_settings.cors_allowed_origins:
+    cors_allowed_origins = resolved_settings.cors_allowed_origins
+    cors_origin_regex = None
+    if not cors_allowed_origins and resolved_settings.app_env.lower() in {"local", "dev", "development"}:
+        cors_allowed_origins = [
+            "http://localhost",
+            "http://127.0.0.1",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+        cors_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^null$"
+
+    if cors_allowed_origins or cors_origin_regex:
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=resolved_settings.cors_allowed_origins,
+            allow_origins=cors_allowed_origins,
+            allow_origin_regex=cors_origin_regex,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],

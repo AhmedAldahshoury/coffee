@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coffee Backend Console</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Backend Console</h1>
+      <div class="row wrap">
+        <label>API base URL <input id="apiBase" type="url" value="http://localhost:8000" /></label>
+        <button id="saveApiBase">Save Base</button>
+        <button data-action="ping" id="pingBtn">Ping /health</button>
+        <span id="pingStatus" class="status">idle</span>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="auth">Auth</button>
+      <button class="tab" data-tab="brews">Brews</button>
+      <button class="tab" data-tab="importExport">Import/Export</button>
+      <button class="tab" data-tab="optimisation">Optimisation</button>
+      <button class="tab" data-tab="meta">Health/Meta</button>
+    </nav>
+
+    <main>
+      <section class="panel active" id="tab-auth">
+        <h2>Auth</h2>
+        <p id="tokenStatus">Token: none</p>
+        <div class="grid2">
+          <div class="card">
+            <h3>Register</h3>
+            <label>Email <input id="registerEmail" type="email" /></label>
+            <label>Password <input id="registerPassword" type="password" /></label>
+            <label>Name <input id="registerName" type="text" /></label>
+            <button data-action="register" id="registerBtn">Register</button>
+            <pre id="registerResult"></pre>
+          </div>
+          <div class="card">
+            <h3>Login / Logout</h3>
+            <label>Email <input id="loginEmail" type="email" /></label>
+            <label>Password <input id="loginPassword" type="password" /></label>
+            <div class="row">
+              <button data-action="login" id="loginBtn">Login</button>
+              <button data-action="logout" id="logoutBtn">Logout</button>
+              <button data-action="me" id="meBtn">/auth/me</button>
+            </div>
+            <pre id="authResult"></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-brews">
+        <h2>Brews</h2>
+        <div class="grid2">
+          <div class="card">
+            <h3>List brews</h3>
+            <button data-action="listBrews" id="listBrewsBtn">List</button>
+            <div id="brewsTable"></div>
+          </div>
+          <div class="card">
+            <h3>Brew details</h3>
+            <label>Brew ID <input id="brewIdInput" type="text" /></label>
+            <button data-action="getBrew" id="getBrewBtn">Fetch brew</button>
+            <pre id="brewDetailResult"></pre>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Create brew</h3>
+          <div class="grid3">
+            <label>Method <input id="brewMethod" type="text" value="aeropress" /></label>
+            <label>Variant ID <input id="brewVariant" type="text" value="aeropress_standard" /></label>
+            <label>Brewed at (ISO) <input id="brewBrewedAt" type="text" placeholder="2026-01-01T10:00:00Z" /></label>
+            <label>Score <input id="brewScore" type="number" min="0" max="10" step="0.1" /></label>
+            <label>Status
+              <select id="brewStatus">
+                <option value="ok">ok</option>
+                <option value="failed">failed</option>
+              </select>
+            </label>
+            <label>Comments <input id="brewComments" type="text" /></label>
+          </div>
+          <label>Parameters JSON</label>
+          <textarea id="brewParams" rows="6">{"grind_size":10,"water_temp":91.0,"brew_time_sec":120}</textarea>
+          <button data-action="createBrew" id="createBrewBtn">Create brew</button>
+          <pre id="createBrewResult"></pre>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-importExport">
+        <h2>Import / Export</h2>
+        <div class="grid2">
+          <div class="card">
+            <h3>Import CSV</h3>
+            <label>Method (optional) <input id="importMethod" type="text" placeholder="aeropress" /></label>
+            <input id="importFile" type="file" accept=".csv,text/csv" />
+            <button data-action="importCsv" id="importBtn">Upload CSV</button>
+            <pre id="importResult"></pre>
+          </div>
+          <div class="card">
+            <h3>Export CSV</h3>
+            <button data-action="exportCsv" id="exportBtn">Download CSV</button>
+            <pre id="exportResult"></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-optimisation">
+        <h2>Optimisation</h2>
+        <div class="grid2">
+          <div class="card">
+            <h3>Create/load study</h3>
+            <label>Method ID <input id="studyMethod" type="text" value="aeropress" /></label>
+            <label>Variant ID <input id="studyVariant" type="text" value="aeropress_standard" /></label>
+            <button data-action="createStudy" id="createStudyBtn">Create/load study</button>
+            <pre id="studyResult"></pre>
+          </div>
+          <div class="card">
+            <h3>Ask suggestion</h3>
+            <button data-action="suggest" id="suggestBtn">Suggest params</button>
+            <pre id="suggestResult"></pre>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Tell result (apply suggestion)</h3>
+          <label>Suggestion ID <input id="applySuggestionId" type="text" /></label>
+          <label>Brew ID <input id="applyBrewId" type="text" /></label>
+          <div class="row">
+            <label>Score <input id="applyScore" type="number" min="0" max="10" step="0.1" /></label>
+            <label><input id="applyFailed" type="checkbox" /> failed</label>
+          </div>
+          <button data-action="applySuggestion" id="applyBtn">Apply suggestion</button>
+          <pre id="applyResult"></pre>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-meta">
+        <h2>Health / Meta</h2>
+        <div class="card">
+          <p>Docs: <a id="docsLink" href="http://localhost:8000/docs" target="_blank" rel="noreferrer">open /docs</a></p>
+          <div class="row">
+            <button data-action="health" id="healthBtn">Check /health</button>
+            <button data-action="openapi" id="openapiBtn">Fetch /openapi.json</button>
+          </div>
+          <pre id="metaResult"></pre>
+        </div>
+      </section>
+
+      <section class="panel" id="apiLogPanel">
+        <h2>API Log (last 30)</h2>
+        <div id="apiLog"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
