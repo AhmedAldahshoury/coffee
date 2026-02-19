@@ -1,7 +1,11 @@
 import logging
+from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi.background import BackgroundTask
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from coffee_backend.api.deps import get_current_user
@@ -38,6 +42,33 @@ def import_csv(
     return result
 
 
+@router.post("/import/csv/upload", response_model=CSVImportResult)
+def import_csv_upload(
+    file: Annotated[UploadFile, File(...)],
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    method: Annotated[str | None, Form()] = None,
+) -> CSVImportResult:
+    suffix = Path(file.filename or "upload.csv").suffix or ".csv"
+    with NamedTemporaryFile(delete=False, suffix=suffix) as handle:
+        contents = file.file.read()
+        handle.write(contents)
+        temp_path = Path(handle.name)
+
+    try:
+        logger.info(
+            "import.csv.upload.requested",
+            extra={"user_id": str(user.id), "filename": file.filename},
+        )
+        result = ImportExportService(db).import_csv(
+            user.id,
+            CSVImportRequest(method=method, data_path=str(temp_path)),
+        )
+        return result
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 @router.get("/export/csv")
 def export_csv(
     out_dir: Annotated[str, Query()],
@@ -47,3 +78,16 @@ def export_csv(
     logger.info("export.csv.requested", extra={"user_id": str(user.id), "out_dir": out_dir})
     result = ImportExportService(db).export_csv(user.id, out_dir)
     return {"output_files": result.output_files}
+
+
+@router.get("/export/csv/download")
+def export_csv_download(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> FileResponse:
+    temp_dir = TemporaryDirectory()
+    result = ImportExportService(db).export_csv(user.id, temp_dir.name)
+    path = Path(result.output_files[0])
+    response = FileResponse(path, media_type="text/csv", filename="brews.export.csv")
+    response.background = BackgroundTask(temp_dir.cleanup)
+    return response
