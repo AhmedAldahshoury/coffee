@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 revision = "0003_study_contexts"
 down_revision = "0002_method_profiles"
@@ -37,8 +38,23 @@ def _build_study_key(
     )
 
 
+def _is_duplicate_column_error(exc: Exception, column_name: str) -> bool:
+    message = str(exc).lower()
+    return "duplicate column" in message and column_name.lower() in message
+
+
 def upgrade() -> None:
-    op.add_column("brews", sa.Column("variant_id", sa.String(length=100), nullable=True))
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    is_sqlite = connection.dialect.name == "sqlite"
+
+    brew_columns = {column["name"] for column in inspector.get_columns("brews")}
+    if "variant_id" not in brew_columns:
+        try:
+            op.add_column("brews", sa.Column("variant_id", sa.String(length=100), nullable=True))
+        except (OperationalError, ProgrammingError) as exc:
+            if not _is_duplicate_column_error(exc, "variant_id"):
+                raise
 
     op.create_table(
         "study_contexts",
@@ -84,16 +100,15 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_suggestions_study_context_id"), "suggestions", ["study_context_id"], unique=False
     )
-    op.create_foreign_key(
-        "fk_suggestions_study_context_id",
-        "suggestions",
-        "study_contexts",
-        ["study_context_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
-
-    connection = op.get_bind()
+    if not is_sqlite:
+        op.create_foreign_key(
+            "fk_suggestions_study_context_id",
+            "suggestions",
+            "study_contexts",
+            ["study_context_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
     brews = connection.execute(sa.text("SELECT id, method FROM brews")).fetchall()
     for brew in brews:
@@ -196,14 +211,45 @@ def upgrade() -> None:
             },
         )
 
-    op.alter_column("brews", "variant_id", existing_type=sa.String(length=100), nullable=False)
-    op.alter_column("suggestions", "study_context_id", existing_type=sa.Uuid(), nullable=False)
+    if is_sqlite:
+        with op.batch_alter_table("suggestions", recreate="always") as batch_op:
+            batch_op.create_foreign_key(
+                "fk_suggestions_study_context_id",
+                "study_contexts",
+                ["study_context_id"],
+                ["id"],
+                ondelete="CASCADE",
+            )
+            batch_op.alter_column(
+                "study_context_id",
+                existing_type=sa.Uuid(),
+                nullable=False,
+            )
+
+        with op.batch_alter_table("brews", recreate="always") as batch_op:
+            batch_op.alter_column(
+                "variant_id",
+                existing_type=sa.String(length=100),
+                nullable=False,
+            )
+    else:
+        op.alter_column("brews", "variant_id", existing_type=sa.String(length=100), nullable=False)
+        op.alter_column("suggestions", "study_context_id", existing_type=sa.Uuid(), nullable=False)
 
 
 def downgrade() -> None:
-    op.drop_constraint("fk_suggestions_study_context_id", "suggestions", type_="foreignkey")
-    op.drop_index(op.f("ix_suggestions_study_context_id"), table_name="suggestions")
-    op.drop_column("suggestions", "study_context_id")
+    connection = op.get_bind()
+    is_sqlite = connection.dialect.name == "sqlite"
+
+    if is_sqlite:
+        op.drop_index(op.f("ix_suggestions_study_context_id"), table_name="suggestions")
+        with op.batch_alter_table("suggestions", recreate="always") as batch_op:
+            batch_op.drop_constraint("fk_suggestions_study_context_id", type_="foreignkey")
+            batch_op.drop_column("study_context_id")
+    else:
+        op.drop_constraint("fk_suggestions_study_context_id", "suggestions", type_="foreignkey")
+        op.drop_index(op.f("ix_suggestions_study_context_id"), table_name="suggestions")
+        op.drop_column("suggestions", "study_context_id")
 
     op.drop_index(op.f("ix_study_contexts_study_key"), table_name="study_contexts")
     op.drop_index(op.f("ix_study_contexts_variant_id"), table_name="study_contexts")
