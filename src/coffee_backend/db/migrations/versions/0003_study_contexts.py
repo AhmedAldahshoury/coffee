@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 revision = "0003_study_contexts"
 down_revision = "0002_method_profiles"
@@ -37,13 +38,22 @@ def _build_study_key(
     )
 
 
+def _is_duplicate_column_error(exc: Exception, column_name: str) -> bool:
+    message = str(exc).lower()
+    return "duplicate column" in message and column_name.lower() in message
+
+
 def upgrade() -> None:
     connection = op.get_bind()
     inspector = sa.inspect(connection)
 
     brew_columns = {column["name"] for column in inspector.get_columns("brews")}
     if "variant_id" not in brew_columns:
-        op.add_column("brews", sa.Column("variant_id", sa.String(length=100), nullable=True))
+        try:
+            op.add_column("brews", sa.Column("variant_id", sa.String(length=100), nullable=True))
+        except (OperationalError, ProgrammingError) as exc:
+            if not _is_duplicate_column_error(exc, "variant_id"):
+                raise
 
     op.create_table(
         "study_contexts",
