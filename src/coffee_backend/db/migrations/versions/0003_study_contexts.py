@@ -38,7 +38,12 @@ def _build_study_key(
 
 
 def upgrade() -> None:
-    op.add_column("brews", sa.Column("variant_id", sa.String(length=100), nullable=True))
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+
+    brew_columns = {column["name"] for column in inspector.get_columns("brews")}
+    if "variant_id" not in brew_columns:
+        op.add_column("brews", sa.Column("variant_id", sa.String(length=100), nullable=True))
 
     op.create_table(
         "study_contexts",
@@ -92,8 +97,6 @@ def upgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
-
-    connection = op.get_bind()
 
     brews = connection.execute(sa.text("SELECT id, method FROM brews")).fetchall()
     for brew in brews:
