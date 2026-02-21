@@ -4,7 +4,7 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
-from fastapi.background import BackgroundTask
+from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
